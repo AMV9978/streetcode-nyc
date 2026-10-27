@@ -1,0 +1,77 @@
+{
+  "checkedAt": "2026-10-27T17:09:56.781Z",
+  "node": "v24.22.1",
+  "live": true,
+  "results": [
+    {
+      "path": "/",
+      "status": 200
+    },
+    {
+      "path": "/stations.json",
+      "status": 200
+    },
+    {
+      "path": "/lab/index.html",
+      "status": 200
+    },
+    {
+      "path": "/api/arrivals?feed=invalid",
+      "status": 400
+    },
+    {
+      "path": "/api/alerts?format=invalid",
+      "status": 400
+    },
+    {
+      "path": "/api/arrivals?feed=numbered",
+      "status": 200,
+      "predictions": 3989
+    },
+    {
+      "path": "/api/arrivals?feed=ace",
+      "status": 200,
+      "predictions": 1479
+    },
+    {
+      "path": "/api/arrivals?feed=bdfm",
+      "status": 200,
+      "predictions": 2330
+    },
+    {
+      "path": "/api/arrivals?feed=g",
+      "status": 200,
+      "predictions": 315
+    },
+    {
+      "path": "/api/arrivals?feed=jz",
+      "status": 200,
+      "predictions": 338
+    },
+    {
+      "path": "/api/arrivals?feed=l",
+      "status": 200,
+      "predictions": 324
+    },
+    {
+      "path": "/api/arrivals?feed=nqrw",
+      "status": 200,
+      "predictions": 1851
+    },
+    {
+      "path": "/api/arrivals?feed=si",
+      "status": 200,
+      "predictions": 87
+    },
+    {
+      "path": "/api/alerts?format=json",
+      "status": 200,
+      "advisories": 178
+    },
+    {
+      "path": "/api/alerts?format=protobuf",
+      "status": 200,
+      "advisories": 178
+    }
+  ]
+}
