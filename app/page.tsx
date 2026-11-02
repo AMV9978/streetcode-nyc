@@ -53,6 +53,14 @@ const clock = (n: number) =>
     minute: "2-digit",
     second: "2-digit",
   });
+const normalizeSearch = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/\bsquare\b/g, "sq")
+    .replace(/\bstreet\b/g, "st")
+    .replace(/\bavenue\b/g, "av")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 export default function Home() {
   const [stations, setStations] = useState<Station[]>([]),
     [selected, setSelected] = useState("L03"),
@@ -69,7 +77,12 @@ export default function Home() {
     [now, setNow] = useState(0),
     [planned, setPlanned] = useState(false),
     [format, setFormat] = useState("json"),
-    [storageError, setStorageError] = useState("");
+    [storageError, setStorageError] = useState(""),
+    [catalogReady, setCatalogReady] = useState(false),
+    [online, setOnline] = useState(true),
+    [refreshVersion, setRefreshVersion] = useState(0),
+    [lastAttempt, setLastAttempt] = useState(0),
+    [shareMessage, setShareMessage] = useState("");
   const station = stations.find((s) => s.id === selected),
     generation = useRef(0);
   useEffect(() => {
@@ -78,7 +91,26 @@ export default function Home() {
         if (!r.ok) throw Error("Station catalog unavailable");
         return r.json();
       })
-      .then(setStations)
+      .then((catalog: Station[]) => {
+        setStations(catalog);
+        const params = new URLSearchParams(window.location.search);
+        let saved: { station?: string; direction?: string } = {};
+        try {
+          saved =
+            JSON.parse(
+              localStorage.getItem("streetcode-last-station-v1") || "{}",
+            ) || {};
+        } catch {}
+        const requested = params.get("station") || saved.station;
+        if (catalog.some((s) => s.id === requested)) {
+          setSelected(requested!);
+          const requestedDirection = params.has("station")
+            ? params.get("direction")
+            : saved.direction;
+          setDirection(requestedDirection === "S" ? "S" : "N");
+        }
+        setCatalogReady(true);
+      })
       .catch((e) => setErrors((v) => ({ ...v, catalog: e.message })));
     try {
       const f = JSON.parse(
@@ -90,9 +122,50 @@ export default function Home() {
       setStorageError("Saved stations could not be read.");
     }
     setNow(Date.now());
+    const connection = () => setOnline(navigator.onLine);
+    connection();
+    window.addEventListener("online", connection);
+    window.addEventListener("offline", connection);
     const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("online", connection);
+      window.removeEventListener("offline", connection);
+    };
   }, []);
+  useEffect(() => {
+    if (!catalogReady) return;
+    try {
+      localStorage.setItem(
+        "streetcode-last-station-v1",
+        JSON.stringify({ station: selected, direction }),
+      );
+    } catch {}
+    setShareMessage("");
+  }, [selected, direction, catalogReady]);
+  function selectStation(id: string) {
+    setSelected(id);
+    setDirection("N");
+    if (window.matchMedia("(max-width: 700px)").matches) {
+      document
+        .getElementById("arrival-board")
+        ?.scrollIntoView({ behavior: "auto", block: "start" });
+      document.getElementById("station-title")?.focus({ preventScroll: true });
+    }
+  }
+  async function shareStation() {
+    const url = new URL(window.location.origin + "/");
+    url.searchParams.set("station", selected);
+    url.searchParams.set("direction", direction);
+    try {
+      await navigator.clipboard.writeText(url.toString());
+      setShareMessage(
+        "Station link copied. You can paste it into a message or bookmark it.",
+      );
+    } catch {
+      setShareMessage("Your station link: " + url.toString());
+    }
+  }
   const feedIds = station
     ? ([
         ...new Set(
@@ -108,20 +181,23 @@ export default function Home() {
     : [];
   const feedKey = feedIds.sort().join(",");
   useEffect(() => {
-    if (!station) return;
+    setLoading(false);
+    if (!station || !catalogReady) return;
     const id = ++generation.current;
+    const controller = new AbortController();
     let disposed = false,
       timer: ReturnType<typeof setTimeout>;
     let failures = 0;
     let busy = false;
     const refresh = async () => {
       if (disposed || busy) return;
-      if (document.hidden || paused) {
+      if (document.hidden || paused || !online) {
         timer = setTimeout(refresh, 30000);
         return;
       }
       busy = true;
       setLoading(true);
+      setLastAttempt(Date.now());
       const jobs = [
         ...feedKey
           .split(",")
@@ -131,7 +207,12 @@ export default function Home() {
       ];
       const results = await Promise.allSettled(
         jobs.map(async (j) => {
-          const r = await fetch(j.url, { signal: AbortSignal.timeout(18000) });
+          const r = await fetch(j.url, {
+            signal: AbortSignal.any([
+              controller.signal,
+              AbortSignal.timeout(18000),
+            ]),
+          });
           if (!r.ok) throw Error("Feed temporarily unavailable");
           return r.json();
         }),
@@ -171,10 +252,19 @@ export default function Home() {
     document.addEventListener("visibilitychange", visible);
     return () => {
       disposed = true;
+      controller.abort();
       clearTimeout(timer);
       document.removeEventListener("visibilitychange", visible);
     };
-  }, [feedKey, paused, format, !!station]);
+  }, [
+    feedKey,
+    paused,
+    format,
+    !!station,
+    catalogReady,
+    online,
+    refreshVersion,
+  ]);
   function favorite(id: string) {
     const next = favorites.includes(id)
       ? favorites.filter((x) => x !== id)
@@ -192,7 +282,7 @@ export default function Home() {
   const shown = stations.filter(
     (s) =>
       (line === "All" || s.routes.includes(line)) &&
-      `${s.name} ${s.id}`.toLowerCase().includes(query.toLowerCase()) &&
+      normalizeSearch(`${s.name} ${s.id}`).includes(normalizeSearch(query)) &&
       (tab !== "saved" || favorites.includes(s.id)),
   );
   const snapshots = feedIds.map((f) => data[f]).filter(Boolean),
@@ -226,10 +316,30 @@ export default function Home() {
   );
   const selectedAlertCount = (alerts?.alerts || []).filter(
     (a: any) =>
-      a.active && a.routes.some((r: string) => station?.routes.includes(r)),
+      a.active &&
+      (!a.routes.length ||
+        a.routes.some((r: string) => station?.routes.includes(r))),
   ).length;
+  const nearbyStations = station
+    ? stations
+        .filter(
+          (s) =>
+            Math.abs(s.lat - station.lat) < 0.045 &&
+            Math.abs(s.lon - station.lon) < 0.065,
+        )
+        .sort(
+          (a, b) =>
+            (a.lat - station.lat) ** 2 +
+            (a.lon - station.lon) ** 2 -
+            ((b.lat - station.lat) ** 2 + (b.lon - station.lon) ** 2),
+        )
+        .slice(0, 12)
+    : [];
   return (
     <>
+      <a className="skip-link" href="#arrival-board">
+        Skip to arrivals
+      </a>
       <header>
         <a className="brand" href="/">
           <span className="brand-icon">S↗</span>
@@ -242,15 +352,19 @@ export default function Home() {
             className={tab === "arrivals" ? "active" : ""}
             onClick={() => setTab("arrivals")}
           >
-            Live stations
+            Live arrivals
           </button>
           <button
             className={tab === "saved" ? "active" : ""}
-            onClick={() => setTab("saved")}
+            onClick={() => {
+              setTab("saved");
+              setQuery("");
+              setLine("All");
+            }}
           >
             Saved <small>{favorites.length}</small>
           </button>
-          <a href="/lab/index.html">Algorithm lab ↗</a>
+          <a href="/lab/index.html">Route demo ↗</a>
         </nav>
         <span className="city">NEW YORK · {now ? clock(now) : "—"} ET</span>
       </header>
@@ -277,17 +391,29 @@ export default function Home() {
             <p>Official MTA feeds · Independent student project</p>
           </div>
         </section>
+        <div className="quick-start" aria-label="Getting started">
+          <span>
+            <b>1</b> Find your station and line
+          </span>
+          <span>
+            <b>2</b> Choose your platform direction
+          </span>
+          <span>
+            <b>3</b> Save it for next time
+          </span>
+        </div>
         <div className="workspace">
           <aside>
             <div className="section-label">01 / FIND YOUR STATION</div>
             <h2>
               {tab === "saved"
                 ? "Your saved stations"
-                : "Where are you headed?"}
+                : "Where are you boarding?"}
             </h2>
-            <label htmlFor="search">Station name or ID</label>
+            <label htmlFor="search">Find a station</label>
             <input
               id="search"
+              disabled={!catalogReady}
               placeholder="Search Union Sq, Times Sq…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -295,6 +421,7 @@ export default function Home() {
             <label htmlFor="line">Subway line</label>
             <select
               id="line"
+              disabled={!catalogReady}
               value={line}
               onChange={(e) => setLine(e.target.value)}
             >
@@ -304,23 +431,52 @@ export default function Home() {
               ))}
             </select>
             <div className="list-caption">
-              {shown.length} stations <span>Choose a platform group</span>
+              <span>
+                {catalogReady
+                  ? `${shown.length} ${shown.length === 1 ? "match" : "matches"}`
+                  : "Loading stations…"}
+              </span>
+              {(query || line !== "All") && (
+                <button
+                  className="text-button"
+                  onClick={() => {
+                    setQuery("");
+                    setLine("All");
+                  }}
+                >
+                  Clear filters
+                </button>
+              )}
             </div>
-            {errors.catalog && <p role="alert">{errors.catalog}</p>}
+            <p className="search-help">
+              Some station names appear more than once. Choose the entry showing
+              your subway line.
+            </p>
+            {errors.catalog && (
+              <div role="alert" className="warning">
+                We couldn’t load the station list.{" "}
+                <button
+                  className="text-button"
+                  onClick={() => window.location.reload()}
+                >
+                  Try again
+                </button>
+              </div>
+            )}
             <div className="station-list">
               {shown.map((s) => (
                 <button
                   key={s.id}
                   className={"station " + (selected === s.id ? "selected" : "")}
-                  onClick={() => {
-                    setSelected(s.id);
-                    setDirection("N");
-                  }}
+                  aria-pressed={selected === s.id}
+                  onClick={() => selectStation(s.id)}
                 >
                   <span>
                     <strong>{s.name}</strong>
                     <small>
-                      {s.id} {favorites.includes(s.id) ? "· Saved" : ""}
+                      {favorites.includes(s.id)
+                        ? "★ Saved station"
+                        : "View arrivals"}
                     </small>
                   </span>
                   <span className="badges">
@@ -330,25 +486,34 @@ export default function Home() {
                   </span>
                 </button>
               ))}
-              {!shown.length && (
+              {catalogReady && !shown.length && (
                 <p className="empty">
-                  {tab === "saved"
-                    ? "Save a station using the star beside its name."
+                  {tab === "saved" && !favorites.length
+                    ? "Save a station using the star beside its name. It will stay here on this browser, with no sign-in needed."
                     : "No stations match. Try another name or line."}
                 </p>
               )}
             </div>
           </aside>
-          <section className="detail">
+          <section
+            className="detail"
+            id="arrival-board"
+            aria-label="Selected station arrivals"
+            tabIndex={-1}
+          >
             <div className="station-heading">
               <div>
                 <div className="section-label">02 / YOUR PLATFORM</div>
-                <h2>{station?.name || "Loading stations…"}</h2>
+                <h2 id="station-title" tabIndex={-1}>
+                  {station?.name ||
+                    (errors.catalog
+                      ? "Station list unavailable"
+                      : "Loading stations…")}
+                </h2>
                 <div className="badges">
                   {station?.routes.map((r) => (
                     <Badge key={r} route={r} />
                   ))}
-                  <span className="muted">Station {selected}</span>
                 </div>
               </div>
               <button
@@ -359,12 +524,28 @@ export default function Home() {
                 }
                 aria-pressed={favorites.includes(selected)}
                 className="save"
+                disabled={!catalogReady}
                 onClick={() => favorite(selected)}
               >
                 {favorites.includes(selected) ? "★ Saved" : "☆ Save"}
               </button>
             </div>
             {storageError && <p role="status">{storageError}</p>}
+            <div className="station-actions">
+              <button
+                className="text-button"
+                disabled={!catalogReady}
+                onClick={shareStation}
+              >
+                Copy station link
+              </button>
+              <span>Saved stations stay on this browser.</span>
+            </div>
+            {shareMessage && (
+              <p className="share-message" role="status">
+                {shareMessage}
+              </p>
+            )}
             <div className="board-tools">
               <div className="segmented" aria-label="Direction">
                 {["N", "S"].map((d) => (
@@ -378,38 +559,70 @@ export default function Home() {
                   </button>
                 ))}
               </div>
-              <button className="pause" onClick={() => setPaused(!paused)}>
-                {paused ? "▶ Resume updates" : "Ⅱ Pause updates"}
-              </button>
+              <div className="refresh-actions">
+                <button
+                  className="refresh"
+                  disabled={
+                    !station || !online || loading || now - lastAttempt < 30000
+                  }
+                  onClick={() => {
+                    setPaused(false);
+                    setRefreshVersion((v) => v + 1);
+                  }}
+                >
+                  Refresh now
+                </button>
+                <button
+                  className="pause"
+                  aria-pressed={paused}
+                  onClick={() => setPaused(!paused)}
+                >
+                  {paused ? "▶ Resume updates" : "Ⅱ Pause updates"}
+                </button>
+              </div>
             </div>
             <p className="direction-note">
-              MTA platform direction · Check train destinations and station
-              signs before boarding.
+              These are MTA direction labels. Check platform signs and the
+              train’s destination before boarding. Automatic updates run while
+              this page is open and visible.
             </p>
             <div
-              className={"health " + (old || missing.length ? "warning" : "")}
-              role="status"
+              className={
+                "health " +
+                (!online || paused || old || (missing.length && !loading)
+                  ? "warning"
+                  : "")
+              }
             >
               <span className="dot" />
-              {paused
-                ? "Updates paused"
-                : loading
-                  ? "Refreshing MTA feeds…"
-                  : missing.length
-                    ? "Some feeds unavailable · automatic retry enabled"
-                    : old
-                      ? "Stale predictions · check MTA before traveling"
-                      : "Automatic updates every 30 seconds"}
+              <span role="status">
+                {!online
+                  ? "You’re offline. Updates will resume when your connection returns."
+                  : !catalogReady
+                    ? "Waiting for the station list…"
+                    : paused
+                      ? "Updates paused. Resume to check the latest arrivals."
+                      : loading
+                        ? "Checking MTA for the latest arrivals…"
+                        : missing.length
+                          ? "Some arrival information is unavailable. We’ll try again automatically."
+                          : old
+                            ? "These predictions may be out of date. Check MTA before traveling."
+                            : "Updates automatically about every 30 seconds"}
+              </span>
               <span>
                 {snapshots.length
-                  ? "Feed time " +
-                    clock(Math.min(...snapshots.map((s) => s.timestamp)) * 1000)
-                  : "Waiting for first feed"}
+                  ? "MTA updated " +
+                    clock(
+                      Math.min(...snapshots.map((s) => s.timestamp)) * 1000,
+                    ) +
+                    " ET"
+                  : "No arrival data received yet"}
               </span>
             </div>
             <div className="arrival-head">
-              <span>LINE / PLATFORM</span>
-              <span>EXPECTED ARRIVAL</span>
+              <span>YOUR TRAIN</span>
+              <span>PREDICTED ARRIVAL</span>
             </div>
             <div className="arrival-list">
               {arrivals.map((a, i) => (
@@ -422,7 +635,7 @@ export default function Home() {
                         {a.route}
                       </strong>
                       <small>
-                        Platform {a.stopId} {i === 0 ? "· Next departure" : ""}
+                        {i === 0 ? "Next predicted train" : "Following train"}
                       </small>
                     </div>
                   </div>
@@ -433,7 +646,9 @@ export default function Home() {
                     </strong>
                     <span>
                       {clock(a.time * 1000)} ET
-                      {now / 1000 - a.timestamp > 90 ? " · stale" : ""}
+                      {old || missing.length || !online
+                        ? " · may be out of date"
+                        : ""}
                     </span>
                   </div>
                 </div>
@@ -441,15 +656,38 @@ export default function Home() {
               {!arrivals.length && (
                 <div className="empty">
                   <strong>
-                    {loading
-                      ? "Checking the next trains…"
-                      : "No upcoming predictions available"}
+                    {!catalogReady
+                      ? "Choose a station once the list loads"
+                      : !online
+                        ? "Reconnect to check arrivals"
+                        : paused
+                          ? "Updates are paused"
+                          : loading
+                            ? "Checking the next trains…"
+                            : "No upcoming predictions available"}
                   </strong>
                   <p>
-                    {missing.length
-                      ? "The feed could not be loaded. We will retry automatically."
-                      : "MTA has no matching predictions in the next hour. This does not confirm that service has stopped."}
+                    {!catalogReady
+                      ? "The station list is needed to look up your trains."
+                      : !online
+                        ? "We’ll check again when you’re back online."
+                        : paused
+                          ? "Select Resume updates to check for the next trains."
+                          : loading
+                            ? "This can take a few seconds."
+                            : missing.length
+                              ? "The feed could not be loaded. We will retry automatically."
+                              : "MTA has no matching predictions in the next hour. This does not confirm that service has stopped."}
                   </p>
+                  {!loading && catalogReady && (
+                    <a
+                      href="https://www.mta.info"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Check official MTA information ↗
+                    </a>
+                  )}
                 </div>
               )}
             </div>
@@ -457,17 +695,24 @@ export default function Home() {
               <section className="alerts">
                 <div className="section-label">03 / KNOW BEFORE YOU GO</div>
                 <h3>
-                  Service updates <span>{selectedAlertCount}</span>
+                  Service updates{" "}
+                  {alerts && (
+                    <span>
+                      {planned ? relevant.length : selectedAlertCount}
+                    </span>
+                  )}
                 </h3>
                 <div className="segmented">
                   <button
                     className={!planned ? "active" : ""}
+                    aria-pressed={!planned}
                     onClick={() => setPlanned(false)}
                   >
                     Active now
                   </button>
                   <button
                     className={planned ? "active" : ""}
+                    aria-pressed={planned}
                     onClick={() => setPlanned(true)}
                   >
                     Planned work
@@ -480,7 +725,15 @@ export default function Home() {
                     Alerts may be out of date. {errors.alerts}
                   </p>
                 )}
-                {!alerts && !errors.alerts && <p>Loading MTA advisories…</p>}
+                {!alerts && !errors.alerts && (
+                  <p>
+                    {!online
+                      ? "Connect to the internet to load service updates."
+                      : paused
+                        ? "Resume updates to load service advisories."
+                        : "Loading MTA advisories…"}
+                  </p>
+                )}
                 {alerts && relevant.length === 0 && (
                   <p className="muted">
                     No matching {planned ? "future" : "active"} advisories in
@@ -508,89 +761,129 @@ export default function Home() {
                     )}
                   </details>
                 ))}
-                <label htmlFor="format">Alert source</label>
-                <select
-                  id="format"
-                  value={format}
-                  onChange={(e) => setFormat(e.target.value)}
-                >
-                  <option value="json">MTA JSON · subway filtered</option>
-                  <option value="protobuf">MTA subway GTFS-Realtime</option>
-                </select>
-                {alerts && (
-                  <small className="source-note">
-                    Feed timestamp {clock(alerts.timestamp * 1000)} ET
-                    {alerts.fallback ? " · Backup GTFS feed in use" : ""}
-                  </small>
-                )}
+                <details className="data-details">
+                  <summary>About this data</summary>
+                  <p>
+                    Service updates come from MTA and may apply to a whole line.
+                    Open an update to check the affected stations and times.
+                    Most riders can leave the source below on its default
+                    setting.
+                  </p>
+                  <label htmlFor="format">Data source (advanced)</label>
+                  <select
+                    id="format"
+                    value={format}
+                    onChange={(e) => setFormat(e.target.value)}
+                  >
+                    <option value="json">MTA JSON · subway filtered</option>
+                    <option value="protobuf">MTA subway GTFS-Realtime</option>
+                  </select>
+                  {alerts && (
+                    <small className="source-note">
+                      Feed timestamp {clock(alerts.timestamp * 1000)} ET
+                      {alerts.fallback ? " · Backup GTFS feed in use" : ""}
+                    </small>
+                  )}
+                </details>
               </section>
               <section className="map-panel">
                 <div className="section-label">EXPLORE NEARBY STATIONS</div>
-                <h3>A view of your network</h3>
+                <h3>Nearby stations</h3>
                 <p className="muted">
                   Station locations · select a dot to explore
                 </p>
                 <svg
                   viewBox="0 0 340 260"
-                  role="img"
-                  aria-label="Nearby subway station locations, not a route map"
+                  role="group"
+                  aria-label="Select a nearby station. Station diagram, not a route map."
                 >
                   <rect width="340" height="260" fill="#e9f0ec" />
-                  <path
-                    d="M0 180 Q150 20 340 90 M0 240 Q150 80 340 150"
-                    fill="none"
-                    stroke="#d6e5ed"
-                    strokeWidth="28"
-                  />
                   {station &&
-                    stations
-                      .filter(
-                        (s) =>
-                          Math.abs(s.lat - station.lat) < 0.045 &&
-                          Math.abs(s.lon - station.lon) < 0.065,
-                      )
-                      .map((s) => (
-                        <g
-                          key={s.id}
-                          role="button"
-                          tabIndex={0}
-                          aria-label={"Select " + s.name + " " + s.id}
-                          onClick={() => setSelected(s.id)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              setSelected(s.id);
-                            }
-                          }}
-                        >
-                          <circle
-                            cx={170 + (s.lon - station.lon) * 2400}
-                            cy={130 - (s.lat - station.lat) * 2600}
-                            r={s.id === selected ? 9 : 4}
-                            fill={s.id === selected ? "#173f35" : "#fff"}
-                            stroke="#527b6b"
-                            strokeWidth="2"
-                          />
-                          <title>
-                            {s.name} · {s.routes.join(", ")}
-                          </title>
-                        </g>
-                      ))}
+                    nearbyStations.map((s) => (
+                      <g
+                        key={s.id}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={"Select " + s.name + " " + s.id}
+                        onClick={() => selectStation(s.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            selectStation(s.id);
+                          }
+                        }}
+                      >
+                        <circle
+                          cx={170 + (s.lon - station.lon) * 2400}
+                          cy={130 - (s.lat - station.lat) * 2600}
+                          r={s.id === selected ? 9 : 4}
+                          fill={s.id === selected ? "#173f35" : "#fff"}
+                          stroke="#527b6b"
+                          strokeWidth="2"
+                        />
+                        <title>
+                          {s.name} · {s.routes.join(", ")}
+                        </title>
+                      </g>
+                    ))}
                 </svg>
                 <p className="map-note">
-                  Geographic station view. No train locations or route geometry
-                  are inferred.
+                  Dots show stations near your selection. This diagram does not
+                  show train locations, streets, or walking directions.
                 </p>
+                <details>
+                  <summary>Choose from nearby stations</summary>
+                  <div className="nearby-list">
+                    {nearbyStations
+                      .filter((s) => s.id !== selected)
+                      .map((s) => (
+                        <button key={s.id} onClick={() => selectStation(s.id)}>
+                          {s.name}
+                          <small>Lines {s.routes.join(", ")}</small>
+                        </button>
+                      ))}
+                  </div>
+                </details>
                 <a className="lab-link" href="/lab/index.html">
-                  <strong>Go under the hood ↗</strong>
+                  <strong>Try the route demo ↗</strong>
                   <span>
-                    Explore Dijkstra’s algorithm in our simulated route lab.
+                    See how example routes change during a delay. A learning
+                    simulation, separate from these live arrivals.
                   </span>
                 </a>
               </section>
             </div>
           </section>
         </div>
+        <section className="rider-help" aria-label="Using StreetCode NYC">
+          <h2>A few things worth knowing</h2>
+          <details>
+            <summary>Do I need an account?</summary>
+            <p>
+              No. You can check arrivals and save stations without signing in.
+              Your saved stations and last-viewed station stay on this browser.
+              Clearing browser data removes them.
+            </p>
+          </details>
+          <details>
+            <summary>How fresh are the arrivals?</summary>
+            <p>
+              The page checks MTA about 30 seconds after each completed update.
+              Requests pause when the tab is hidden, and slow down after errors.
+              The MTA timestamp shows when the source data was produced. An
+              internet connection is required; predictions can change.
+            </p>
+          </details>
+          <details>
+            <summary>Can this plan my whole journey?</summary>
+            <p>
+              This page shows station arrivals and service updates. It does not
+              calculate a real trip between stations. The separate route demo
+              uses example travel times for learning. Use official MTA
+              information for travel planning and accessibility details.
+            </p>
+          </details>
+        </section>
         <footer>
           <span>StreetCode NYC · Built as a group learning project</span>
           <a href="https://www.mta.info" target="_blank" rel="noreferrer">

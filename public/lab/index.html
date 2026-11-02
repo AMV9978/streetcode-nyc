@@ -10,7 +10,17 @@
     <title>StreetCode NYC | Route lab</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body><a href="/" style="display:block;padding:12px 24px;background:#264c40;color:white">← Back to live StreetCode NYC arrivals</a>
+  <body>
+    <a
+      href="/"
+      style="
+        display: block;
+        padding: 12px 24px;
+        background: #264c40;
+        color: white;
+      "
+      >← Back to live StreetCode NYC arrivals</a
+    >
     <header>
       <a class="brand" href="./"
         ><span class="brand-icon">↗</span> StreetCode <span>NYC</span></a
@@ -27,7 +37,10 @@
         <div>
           <p class="eyebrow">FROM LEETCODE TO THE NEXT STOP</p>
           <h1>One journey. More possibilities.</h1>
-          <p>Compare routes. Change the conditions. See the algorithm think.</p>
+          <p>
+            Compare example routes. Try a delay or closure. See why a route is
+            chosen.
+          </p>
         </div>
         <button id="reset" class="quiet">Reset demo ↺</button>
       </section>
@@ -35,9 +48,10 @@
         <span>i</span>
         <p>
           <strong>A model you can explore.</strong> 17 selected stations,
-          compressed corridors, and invented travel times. The route lab is not live MTA
-          information or a real journey planner. Step-free labels are teaching
-          fixtures.
+          simplified connections, and example travel times. Use the live
+          arrivals page for current MTA predictions. This lab explains route
+          choices and should not be used to plan a real trip. Accessibility
+          labels are simulated.
         </p>
       </div>
       <div class="demo-presets">
@@ -64,17 +78,18 @@
             ><select id="destination"></select
             ><label for="preference">Route preference</label
             ><select id="preference">
-              <option value="0">Fastest modeled journey</option>
-              <option value="8">Prefer fewer transfers (+8 score)</option>
+              <option value="0">Fastest example route</option>
+              <option value="8">Prefer fewer train changes</option>
               <option value="20">
-                Strongly avoid transfers (+20 score)
+                Strongly prefer fewer train changes
               </option></select
             ><label class="check"
               ><input type="checkbox" id="stepfree" /> Step-free model
               only</label
             >
             <p class="hint">
-              Filters every station on the path using simulated access flags.
+              Includes only stations marked step-free in this example. This does
+              not check real elevator availability.
             </p>
             <button class="primary" type="submit">
               Compare routes <span>→</span>
@@ -126,29 +141,53 @@
             <div id="results" aria-live="polite"></div>
           </section>
           <section class="panel trace-panel">
-            <p class="eyebrow">UNDER THE HOOD</p>
-            <h2>Watch Dijkstra work</h2>
+            <p class="eyebrow">ROUTE WALKTHROUGH</p>
+            <h2>How the route is calculated</h2>
             <p class="hint">
-              Each step settles a station + incoming line state at its lowest
-              known score.
+              Follow the options the app compares, one step at a time. Select
+              Next to see which station and subway line it checks next.
+            </p>
+            <p class="trace-context">
+              <strong>Simulation only.</strong> These are search steps, not
+              travel directions or live train movements.
             </p>
             <div class="trace-controls">
               <button
                 id="trace-back"
                 class="quiet"
-                aria-label="Previous algorithm step"
+                aria-label="Previous route calculation step"
               >
-                ←</button
+                ← Back</button
               ><span id="trace-count"></span
               ><button
                 id="trace-next"
                 class="quiet"
-                aria-label="Next algorithm step"
+                aria-label="Next route calculation step"
               >
-                →
+                Next →
               </button>
             </div>
             <div id="trace" aria-live="polite"></div>
+            <details class="method-details">
+              <summary>Learn more about the method</summary>
+              <p>
+                This uses <strong>Dijkstra’s algorithm</strong>, a method named
+                after computer scientist Edsger Dijkstra. It finds the route
+                with the lowest total in this example network.
+              </p>
+              <p>
+                The app checks the lowest-total option first, then compares its
+                connections. It remembers the subway line used to reach each
+                station so it can account for train changes. The same station
+                may appear more than once when different lines are compared.
+              </p>
+              <p>
+                All travel times and delays here are examples. Each train change
+                adds four simulated minutes. Your preference can add extra
+                comparison points to favor fewer changes; those points are not
+                extra travel minutes.
+              </p>
+            </details>
           </section>
         </aside>
       </section>
@@ -210,61 +249,63 @@
       </section>
       <section id="explain" class="explain" hidden>
         <p class="eyebrow">THE PROJECT IN SIX PARTS</p>
-        <h2>From a city problem to a graph algorithm.</h2>
+        <h2>How the route lab makes a choice</h2>
         <div class="explain-grid">
           <article>
             <span>01</span>
             <h3>The question</h3>
             <p>
-              When a corridor slows down or closes, which available route has
-              the lowest cost? The answer changes when a rider prefers fewer
-              transfers.
+              If a line slows down or a station closes, which example route
+              works best? The answer can change when you prefer fewer train
+              changes.
             </p>
           </article>
           <article>
             <span>02</span>
-            <h3>The data model</h3>
+            <h3>The example network</h3>
             <p>
-              Stations become vertices. Bidirectional corridor segments become
-              weighted edges. A search state contains both the station and the
-              incoming line so that transfers are counted correctly.
+              The map connects 17 selected stations with example travel times.
+              The app remembers which line reaches each station so it can
+              include the time needed to change trains.
             </p>
           </article>
           <article>
             <span>03</span>
-            <h3>The objective</h3>
+            <h3>How options are compared</h3>
             <p>
-              Score = ride minutes + simulated delays + 4 minutes per transfer +
-              preference penalty per transfer. The preference penalty affects
-              ranking, not displayed journey minutes.
+              The comparison adds example ride times, delays, and four minutes
+              for each train change. Preferring fewer changes adds comparison
+              points, but does not add minutes to the displayed journey time.
             </p>
           </article>
           <article>
             <span>04</span>
-            <h3>The algorithm</h3>
+            <h3>The method behind the choice</h3>
             <p>
-              Dijkstra uses a binary min-heap to expand the cheapest state.
-              Parent links reconstruct the winning path. It is optimal for this
-              model because all transition costs are nonnegative.
+              Dijkstra’s algorithm is a way to find the lowest-total route
+              through a network. It compares the most promising option first and
+              keeps track of the connections that lead to the best route. The
+              walkthrough lets you follow those comparisons.
             </p>
           </article>
           <article>
             <span>05</span>
-            <h3>The boundary</h3>
+            <h3>What this lab leaves out</h3>
             <p>
-              The route lab excludes timetables, train waiting time, direction-specific
-              service, real elevator status, and live arrivals. Step-free
-              filtering applies to every modeled station, even through stations.
-              This is deliberately conservative and simplified.
+              This simulation does not include train waiting times, current
+              schedules, actual service directions, or real elevator status. The
+              step-free option checks every station in the example route. It
+              cannot confirm that a real trip is accessible.
             </p>
           </article>
           <article>
             <span>06</span>
             <h3>The next iteration</h3>
             <p>
-              Import official GTFS topology and schedules, add GTFS-RT updates
-              through a backend, model platform access and transfers, then
-              validate against real trips before offering travel advice.
+              The live dashboard already shows MTA predictions and alerts. To
+              turn this lab into a real journey planner, we would also need
+              official station connections, schedules, platform access, and
+              validation against actual trips.
             </p>
           </article>
         </div>

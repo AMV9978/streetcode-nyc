@@ -87,7 +87,7 @@ function renderResults() {
     )
     .join("");
   $("results").innerHTML =
-    `<h3>${escape(scenarios[s.scenario].name)}</h3><div class="metric"><strong>${current.minutes}</strong><span>modeled minutes</span></div><div class="route-meta">${current.transfers} transfer${current.transfers === 1 ? "" : "s"} · ${current.legs.length} corridor segments · score ${current.score}</div><div class="badges">${unique || '<span class="chip">Already at destination</span>'}</div><div class="comparison"><strong>${delta}</strong><br>${s.transferPenalty ? `Score includes ${s.transferPenalty} preference points per transfer.` : "Ranking uses modeled journey time."} Waiting time is not included.${counterfactual ? `<br><br>${counterfactual}` : ""}</div><ol class="itinerary"><li>${escape(names.get(s.origin))}<small>Start here</small></li>${itinerary}</ol>`;
+    `<h3>${escape(scenarios[s.scenario].name)}</h3><div class="metric"><strong>${current.minutes}</strong><span>simulated minutes</span></div><div class="route-meta">${current.transfers} train change${current.transfers === 1 ? "" : "s"} · ${current.legs.length} connections</div><div class="badges">${unique || '<span class="chip">Already at destination</span>'}</div><div class="comparison"><strong>${delta}</strong><br>${s.transferPenalty ? "Your preference favors fewer train changes, even if the example trip takes longer." : "The route with the shortest example travel time is selected."} Waiting for trains is not included.${counterfactual ? `<br><br>${counterfactual}` : ""}</div><ol class="itinerary"><li>${escape(names.get(s.origin))}<small>Start here</small></li>${itinerary}</ol>`;
 }
 function renderMap() {
   const selected = new Set(current?.legs?.map((e) => e.id) || []),
@@ -157,7 +157,7 @@ function inspect(id) {
       ),
     ];
   $("station-info").innerHTML =
-    `<strong>${escape(st.name)}</strong> · Modeled lines ${serving.join(", ")} · ${st.stepFree ? "Step-free fixture" : "Not step-free in this model"}<br><button class="quiet" id="set-origin">Set as start</button><button class="quiet" id="set-destination">Set as destination</button>`;
+    `<strong>${escape(st.name)}</strong> · Example lines ${serving.join(", ")} · ${st.stepFree ? "Step-free in this example" : "Not step-free in this example"}<br><button class="quiet" id="set-origin">Set as start</button><button class="quiet" id="set-destination">Set as destination</button>`;
   $("set-origin").onclick = () => {
     $("origin").value = id;
     solve();
@@ -169,19 +169,34 @@ function inspect(id) {
 }
 function renderTrace() {
   const t = current.trace,
-    e = t[traceIndex];
+    e = t[traceIndex],
+    s = settings();
   $("trace-count").textContent = t.length
     ? `Step ${traceIndex + 1} of ${t.length}`
-    : "No states expanded";
+    : "No steps to show";
   $("trace-back").disabled = traceIndex <= 0;
   $("trace-next").disabled = traceIndex >= t.length - 1;
   if (!e) {
     $("trace").textContent =
-      "An endpoint is excluded before the search begins.";
+      "The selected start or destination is unavailable with these settings. Try another station, change the service scenario, or turn off the step-free filter.";
     return;
   }
+  const total = (cost) =>
+      s.transferPenalty ? `${cost} comparison points` : `${cost} simulated min`,
+    reached = current.found && e.station === s.destination,
+    exhausted = !current.found && traceIndex === t.length - 1,
+    progress = reached
+      ? "Destination reached. The best route for your settings is shown above."
+      : exhausted
+        ? "All available options have been checked. No route connects these stations with your current settings."
+        : e.relaxed.length
+          ? "New or better options found from here:"
+          : "No better onward option found at this step. Select Next to see another option.",
+    explanation = s.transferPenalty
+      ? `Lower totals are preferred. The comparison includes example travel time plus ${s.transferPenalty} extra points for each train change. Points help rank routes; they are not a travel-time prediction.`
+      : "This total uses example travel times, delays, and time to change trains. Lower totals are preferred. It is not a live travel-time prediction.";
   $("trace").innerHTML =
-    `<strong>${escape(names.get(e.station))}</strong><br>Incoming line: ${e.line} · settled score: ${e.cost}<ul>${e.relaxed.length ? e.relaxed.map((x) => `<li>Improve ${escape(names.get(x.station))} via ${x.line} → ${x.cost}</li>`).join("") : "<li>No improved neighbor; destination reached or no cheaper transitions.</li>"}</ul>`;
+    `<strong class="trace-station">${escape(names.get(e.station))}</strong><p>${e.line === "Start" ? "Starting point" : `Reached using line ${escape(e.line)}`}<br>Total from the start: <strong>${total(e.cost)}</strong></p><p>${progress}</p>${e.relaxed.length ? `<ul>${e.relaxed.map((x) => `<li><span>${escape(names.get(x.station))} on line ${escape(x.line)}</span><small>${total(x.cost)} from the start</small></li>`).join("")}</ul>` : ""}<p class="hint trace-total-note">${explanation}</p>`;
 }
 function validFavorite(x) {
   return (
@@ -316,7 +331,8 @@ try {
   // Read the legacy key on the same origin so a local upgrade keeps saved trips.
   const parsed = JSON.parse(
     localStorage.getItem("streetcode-journeys-v1") ??
-    localStorage.getItem("transitlens-journeys-v1") ?? "[]",
+      localStorage.getItem("transitlens-journeys-v1") ??
+      "[]",
   );
   if (Array.isArray(parsed))
     favorites = parsed.filter(validFavorite).slice(0, 8);

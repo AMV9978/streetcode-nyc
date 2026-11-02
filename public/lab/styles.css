@@ -36,6 +36,7 @@ button:focus-visible,
 select:focus-visible,
 a:focus-visible,
 input:focus-visible,
+summary:focus-visible,
 [tabindex]:focus-visible {
   outline: 3px solid var(--mint);
   outline-offset: 4px;
@@ -422,28 +423,63 @@ option {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 11px;
+  font-size: 13px;
   color: var(--muted);
   margin: 15px 0;
 }
 .trace-controls button {
-  padding: 4px 10px;
+  padding: 8px 10px;
+  min-height: 44px;
+  font-weight: 700;
 }
 .trace-controls button:disabled {
   opacity: 0.3;
   cursor: default;
 }
 #trace {
-  font-size: 12px;
+  font-size: 15px;
   min-height: 120px;
 }
 #trace strong {
   color: var(--mint);
 }
 #trace ul {
-  padding-left: 16px;
+  padding-left: 20px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 14px;
+}
+#trace li {
+  margin-bottom: 12px;
+}
+#trace li small {
+  display: block;
+  font-size: 13px;
+}
+.trace-context {
+  color: var(--muted);
+  border-left: 3px solid var(--accent);
+  padding-left: 12px;
+  font-size: 13px;
+}
+.trace-total-note {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.method-details {
+  border-top: 1px solid var(--border);
+  margin-top: 20px;
+  padding-top: 16px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.method-details summary {
+  cursor: pointer;
+  color: var(--ink);
+  font-weight: 700;
+  min-height: 44px;
+}
+.method-details p {
+  margin-top: 10px;
 }
 .error {
   color: #f3bf9c;

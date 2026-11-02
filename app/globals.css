@@ -854,3 +854,207 @@ footer a {
     padding: 22px 16px;
   }
 }
+
+/* Rider-focused navigation, controls and help. */
+.nearby-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+.nearby-list button {
+  min-height: 44px;
+  text-align: left;
+  background: #20352d;
+  color: #e1ffe6;
+  border: 1px solid #51745d;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.nearby-list small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+}
+.skip-link {
+  position: fixed;
+  top: -80px;
+  left: 16px;
+  z-index: 10;
+  padding: 12px 18px;
+  background: #b9edc1;
+  color: #102b23;
+  border-radius: 8px;
+}
+.skip-link:focus {
+  top: 12px;
+}
+.quick-start {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 28px;
+  margin: 0 0 28px;
+  padding: 18px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  color: #d3e0e6;
+  font-size: 14px;
+}
+.quick-start span {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.quick-start b {
+  display: inline-grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  background: #294438;
+  color: #d9ffe0;
+}
+.text-button {
+  border: 0;
+  background: none;
+  color: #c3f5ca;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding: 8px 0;
+  font-weight: 700;
+}
+.list-caption {
+  align-items: center;
+  margin-bottom: 0;
+}
+.search-help {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 8px 0 16px;
+}
+.detail {
+  min-width: 0;
+  scroll-margin-top: 20px;
+}
+#station-title:focus {
+  outline-offset: 6px;
+}
+.station-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.share-message {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  color: #c3f5ca;
+}
+.refresh-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.refresh {
+  border: 1px solid #789b83;
+  border-radius: 8px;
+  background: #20352d;
+  color: #e1ffe6;
+  font-weight: 700;
+  padding: 10px 12px;
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.board-tools {
+  flex-wrap: wrap;
+}
+.board-tools button,
+.save,
+nav button,
+nav a {
+  min-height: 44px;
+}
+.health {
+  line-height: 1.7;
+}
+.health > span[role="status"] {
+  flex: 1 1 220px;
+}
+.health > span:last-child {
+  font-variant-numeric: tabular-nums;
+}
+.eta {
+  min-width: 120px;
+}
+.eta > span {
+  max-width: 180px;
+}
+.empty a {
+  color: #c3f5ca;
+}
+.data-details {
+  margin-top: 14px;
+}
+.data-details > summary {
+  color: var(--muted);
+}
+.rider-help {
+  margin: 32px 0 0;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+.rider-help details p {
+  max-width: 900px;
+}
+.rider-help h2 {
+  font-size: 22px;
+}
+@media (max-width: 700px) {
+  .quick-start {
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 22px;
+    font-size: 13px;
+  }
+  input,
+  select {
+    font-size: 16px;
+  }
+  .refresh-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .station-actions {
+    gap: 4px 12px;
+  }
+  .health > span:last-child {
+    margin-left: 14px;
+    width: 100%;
+  }
+  .arrival strong {
+    font-size: 15px;
+  }
+  .eta strong {
+    font-size: 27px;
+  }
+  .arrival {
+    gap: 8px;
+  }
+  .arrival > div:first-child {
+    gap: 9px;
+  }
+  .arrival .badge {
+    width: 30px;
+    height: 30px;
+    font-size: 15px;
+  }
+  .eta {
+    min-width: 105px;
+  }
+}
