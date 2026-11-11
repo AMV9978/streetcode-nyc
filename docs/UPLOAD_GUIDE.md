@@ -1,6 +1,22 @@
+# Latest update: interactive map and quickest predicted trips
+
+Use the new `StreetCode_NYC_GitHub_Update.zip` for an existing repository. Extract it first, then upload its **app, lib, public, scripts, tests, and docs folders plus README.md** at the repository root. This update includes backend and routing data changes; uploading only app and public is no longer sufficient.
+
+Files with the same path replace their existing contents. Do not place them inside a second streetcode-nyc folder, and do not delete your repository. Do not upload the ZIP itself as app source. Review the changed file list before committing to main. Hostinger then needs to deploy that commit (automatically if enabled, otherwise use its redeploy action).
+
+Build settings remain Next.js, Node 22.x/24.x, root ./, npm, `npm run build`, output `.next`. No new environment variables, API keys, or dependencies are required. Keep package.json, package-lock.json, next.config.ts, and tsconfig.json already in the repository. The separate full ZIP includes these files for a clean installation.
+
+After deployment, check map selection, a D-line trip, nearby station discovery, and the live feed timestamps. See MAP_UPDATE.md for a short test sequence.
+
+---
+
 # GitHub and Hostinger upload guide
 
-This package is the Node.js edition. The existing ChatGPT Sites deployment is unchanged. Uploading source to GitHub does not itself host the application.
+This package is the Node.js edition for GitHub and Hostinger. It includes the latest rider usability improvements. The ChatGPT Sites edition is deployed separately; publishing changes there does not update Hostinger. Uploading source to GitHub does not itself host the application.
+
+## Updating your existing deployment
+
+If your app is already connected to GitHub in Hostinger, use the short update instructions in `docs/USABILITY_UPDATE.md`. You do not need to create a new website or change DNS for this update.
 
 ## 1. Download and extract
 
@@ -46,13 +62,14 @@ The Node process reads PORT when the platform supplies it. Do not hardcode a hos
 
 ## 4. Acceptance checks
 
-- Open the dashboard, search for Union Sq, choose the L platform group, and switch direction.
+- Open the dashboard, search for Union Square, choose the entry showing L, and switch direction.
 - Confirm current feed timestamps and arrivals; a valid empty prediction list is possible at some stations.
 - Leave the tab visible for at least 65 seconds and confirm updates continue.
 - Pause and resume updates. Confirm returning from a hidden tab resumes refresh.
 - Save a station, reload, and confirm it remains saved in that browser.
-- Switch between JSON and GTFS-Realtime alert sources; inspect active and planned advisories.
-- Open the algorithm lab and try a scenario. It is labeled simulation data.
+- Expand About this data to switch between JSON and GTFS-Realtime alert sources; inspect active and planned advisories.
+- Open Route demo and try a scenario. It is labeled simulation data.
+- Reload and confirm your last station and direction are restored. Use Copy station link and open the link in another tab.
 - Test a phone-sized viewport and keyboard navigation.
 - Test API URLs: /api/arrivals?feed=l, /api/alerts?format=json, and /api/alerts?format=protobuf. They should return JSON, not an HTML error page.
 

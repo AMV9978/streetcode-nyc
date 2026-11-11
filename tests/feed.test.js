@@ -25,15 +25,23 @@ function fixture({
   deleted = false,
   time = 1100,
   incremental = false,
+  departure = 1110,
 } = {}) {
   const header = msg(
     s(1, "2.0"),
     field(2, incremental ? 1 : 0),
     field(3, 1000),
   );
-  const desc = msg(s(1, "test-trip"), s(5, "L"), field(4, cancel ? 3 : 0));
+  const desc = msg(
+    s(1, "test-trip"),
+    s(5, "L"),
+    s(3, "20261027"),
+    field(4, cancel ? 3 : 0),
+  );
   const stop = msg(
     s(4, "L01N"),
+    field(1, 17),
+    field(3, msg(field(2, departure))),
     field(2, msg(field(2, time))),
     field(5, skip ? 1 : 0),
   );
@@ -49,6 +57,9 @@ test("decodes GTFS header and future stop prediction", () => {
   assert.equal(f.trips, 1);
   assert.equal(f.arrivals[0].stopId, "L01N");
   assert.equal(f.arrivals[0].time, 1100);
+  assert.equal(f.arrivals[0].departure, 1110);
+  assert.equal(f.arrivals[0].sequence, 17);
+  assert.equal(f.arrivals[0].startDate, "20261027");
 });
 test("excludes cancelled, deleted, skipped and past predictions", () => {
   for (const opts of [

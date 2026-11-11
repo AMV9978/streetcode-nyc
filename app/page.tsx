@@ -1,5 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import JourneyPlanner from "./components/JourneyPlanner";
+import Badge from "./components/LineBadge";
+import { lineColor } from "../lib/transit/lines";
 type Station = {
   id: string;
   name: string;
@@ -20,32 +23,6 @@ const groups: Record<string, string> = {
 const routes = "1 2 3 4 5 6 7 A C E B D F M G J Z L N Q R W GS FS H SI".split(
   " ",
 );
-function color(r: string) {
-  return "123".includes(r)
-    ? "#d54943"
-    : "456".includes(r)
-      ? "#168667"
-      : r === "7"
-        ? "#a84ca4"
-        : "ACE".includes(r)
-          ? "#326ac7"
-          : "BDFM".includes(r)
-            ? "#e47626"
-            : r === "G"
-              ? "#678731"
-              : "JZ".includes(r)
-                ? "#936438"
-                : "NQRW".includes(r)
-                  ? "#a47c00"
-                  : "#647588";
-}
-function Badge({ route }: { route: string }) {
-  return (
-    <span className="badge" style={{ background: color(route) }}>
-      {route}
-    </span>
-  );
-}
 const clock = (n: number) =>
   new Date(n).toLocaleTimeString("en-US", {
     timeZone: "America/New_York",
@@ -143,9 +120,9 @@ export default function Home() {
     } catch {}
     setShareMessage("");
   }, [selected, direction, catalogReady]);
-  function selectStation(id: string) {
+  function selectStation(id: string, platformDirection = "N") {
     setSelected(id);
-    setDirection("N");
+    setDirection(platformDirection === "S" ? "S" : "N");
     if (window.matchMedia("(max-width: 700px)").matches) {
       document
         .getElementById("arrival-board")
@@ -320,21 +297,6 @@ export default function Home() {
       (!a.routes.length ||
         a.routes.some((r: string) => station?.routes.includes(r))),
   ).length;
-  const nearbyStations = station
-    ? stations
-        .filter(
-          (s) =>
-            Math.abs(s.lat - station.lat) < 0.045 &&
-            Math.abs(s.lon - station.lon) < 0.065,
-        )
-        .sort(
-          (a, b) =>
-            (a.lat - station.lat) ** 2 +
-            (a.lon - station.lon) ** 2 -
-            ((b.lat - station.lat) ** 2 + (b.lon - station.lon) ** 2),
-        )
-        .slice(0, 12)
-    : [];
   return (
     <>
       <a className="skip-link" href="#arrival-board">
@@ -342,15 +304,25 @@ export default function Home() {
       </a>
       <header>
         <a className="brand" href="/">
-          <span className="brand-icon">S↗</span>
+          <span className="brand-icon">
+            S<span>↗</span>
+          </span>
           <span>
             StreetCode <em>NYC</em>
           </span>
         </a>
         <nav aria-label="Main navigation">
+          <a href="#planner" className="plan-nav">
+            Plan a trip
+          </a>
           <button
             className={tab === "arrivals" ? "active" : ""}
-            onClick={() => setTab("arrivals")}
+            onClick={() => {
+              setTab("arrivals");
+              document
+                .getElementById("live-stations")
+                ?.scrollIntoView({ behavior: "smooth" });
+            }}
           >
             Live arrivals
           </button>
@@ -360,6 +332,9 @@ export default function Home() {
               setTab("saved");
               setQuery("");
               setLine("All");
+              document
+                .getElementById("live-stations")
+                ?.scrollIntoView({ behavior: "smooth" });
             }}
           >
             Saved <small>{favorites.length}</small>
@@ -372,34 +347,45 @@ export default function Home() {
         <section className="intro">
           <div>
             <div className="eyebrow">
-              <span className="dot" /> THE CITY MOVES. STAY AHEAD.
+              <span className="live-dot" /> NEW YORK CITY · LIVE TRANSIT
             </div>
             <h1>
-              Your next train.
+              The city is yours.
               <br />
-              <span>One clearer commute.</span>
+              <span>Find your way through it.</span>
             </h1>
-            <p>Live arrivals and service updates, together in one place.</p>
+            <p>Your stations. Your connection. One clearer commute.</p>
           </div>
-          <div className="intro-note">
-            <span>BUILT FOR THE EVERYDAY RIDER</span>
-            <strong>
-              Less guessing.
-              <br />
-              More getting there.
-            </strong>
-            <p>Official MTA feeds · Independent student project</p>
+          <div className="intro-network" aria-label="NYC subway lines">
+            <div>
+              {["1", "2", "3", "A", "C", "E", "N", "Q", "R"].map((r) => (
+                <Badge key={r} route={r} />
+              ))}
+            </div>
+            <div>
+              {["4", "5", "6", "B", "D", "F", "7", "G", "L"].map((r) => (
+                <Badge key={r} route={r} />
+              ))}
+            </div>
+            <p>Official MTA data. A StreetCode perspective.</p>
           </div>
         </section>
-        <div className="quick-start" aria-label="Getting started">
-          <span>
-            <b>1</b> Find your station and line
-          </span>
-          <span>
-            <b>2</b> Choose your platform direction
-          </span>
-          <span>
-            <b>3</b> Save it for next time
+        <JourneyPlanner
+          initialStation={selected}
+          onArrivals={(id, direction) => {
+            selectStation(id, direction);
+            document
+              .getElementById("arrival-board")
+              ?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
+        />
+        <div className="section-heading" id="live-stations">
+          <div>
+            <div className="eyebrow">RIGHT NOW, AT YOUR STATION</div>
+            <h2>Next trains. Less guesswork.</h2>
+          </div>
+          <span className="live-label">
+            <span className="live-dot" /> Live MTA arrivals
           </span>
         </div>
         <div className="workspace">
@@ -423,7 +409,10 @@ export default function Home() {
               id="line"
               disabled={!catalogReady}
               value={line}
-              onChange={(e) => setLine(e.target.value)}
+              onChange={(e) => {
+                setLine(e.target.value);
+                setQuery("");
+              }}
             >
               <option>All</option>
               {routes.map((r) => (
@@ -449,8 +438,9 @@ export default function Home() {
               )}
             </div>
             <p className="search-help">
-              Some station names appear more than once. Choose the entry showing
-              your subway line.
+              Changing the line shows all of its stations. Times Sq and nearby
+              42 St–Bryant Park are separate stops; B, D, F and M use Bryant
+              Park.
             </p>
             {errors.catalog && (
               <div role="alert" className="warning">
@@ -496,6 +486,11 @@ export default function Home() {
             </div>
           </aside>
           <section
+            style={
+              {
+                "--selected-line": lineColor(station?.routes[0] || "L"),
+              } as React.CSSProperties
+            }
             className="detail"
             id="arrival-board"
             aria-label="Selected station arrivals"
@@ -786,69 +781,21 @@ export default function Home() {
                   )}
                 </details>
               </section>
-              <section className="map-panel">
-                <div className="section-label">EXPLORE NEARBY STATIONS</div>
-                <h3>Nearby stations</h3>
-                <p className="muted">
-                  Station locations · select a dot to explore
+              <section className="travel-tips">
+                <div className="section-label">MAKE YOUR NEXT MOVE</div>
+                <h3>A little help along the way.</h3>
+                <p>
+                  Choose a start and destination on the map to check live
+                  connections. Your saved stations are always one tap away.
                 </p>
-                <svg
-                  viewBox="0 0 340 260"
-                  role="group"
-                  aria-label="Select a nearby station. Station diagram, not a route map."
-                >
-                  <rect width="340" height="260" fill="#e9f0ec" />
-                  {station &&
-                    nearbyStations.map((s) => (
-                      <g
-                        key={s.id}
-                        role="button"
-                        tabIndex={0}
-                        aria-label={"Select " + s.name + " " + s.id}
-                        onClick={() => selectStation(s.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            selectStation(s.id);
-                          }
-                        }}
-                      >
-                        <circle
-                          cx={170 + (s.lon - station.lon) * 2400}
-                          cy={130 - (s.lat - station.lat) * 2600}
-                          r={s.id === selected ? 9 : 4}
-                          fill={s.id === selected ? "#173f35" : "#fff"}
-                          stroke="#527b6b"
-                          strokeWidth="2"
-                        />
-                        <title>
-                          {s.name} · {s.routes.join(", ")}
-                        </title>
-                      </g>
-                    ))}
-                </svg>
-                <p className="map-note">
-                  Dots show stations near your selection. This diagram does not
-                  show train locations, streets, or walking directions.
-                </p>
-                <details>
-                  <summary>Choose from nearby stations</summary>
-                  <div className="nearby-list">
-                    {nearbyStations
-                      .filter((s) => s.id !== selected)
-                      .map((s) => (
-                        <button key={s.id} onClick={() => selectStation(s.id)}>
-                          {s.name}
-                          <small>Lines {s.routes.join(", ")}</small>
-                        </button>
-                      ))}
-                  </div>
-                </details>
+                <a className="planner-link" href="#planner">
+                  Back to the subway map <span>↗</span>
+                </a>
                 <a className="lab-link" href="/lab/index.html">
-                  <strong>Try the route demo ↗</strong>
+                  <strong>Curious how routes are found? ↗</strong>
                   <span>
-                    See how example routes change during a delay. A learning
-                    simulation, separate from these live arrivals.
+                    Explore the separate learning demo with example routes and
+                    delays.
                   </span>
                 </a>
               </section>
@@ -877,10 +824,12 @@ export default function Home() {
           <details>
             <summary>Can this plan my whole journey?</summary>
             <p>
-              This page shows station arrivals and service updates. It does not
-              calculate a real trip between stations. The separate route demo
-              uses example travel times for learning. Use official MTA
-              information for travel planning and accessibility details.
+              The map searches live subway predictions for a connection in the
+              next hour, including station transfers. It does not include buses,
+              ferries, your walk to the first station, or accessibility routing.
+              It may miss a connection when predictions are incomplete. Check
+              MTA service advice before traveling. The separate route demo still
+              uses example times for learning.
             </p>
           </details>
         </section>

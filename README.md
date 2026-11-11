@@ -1,6 +1,6 @@
 # StreetCode NYC
 
-A group bootcamp project that brings NYC subway arrival predictions, station search, saved stations, and service advisories into one readable dashboard.
+A group bootcamp project that brings NYC subway arrival predictions, an interactive subway map, quickest predicted trips, nearby-station discovery, saved stations, and service advisories into one readable dashboard.
 
 This repository is the portable Node.js edition of the deployed StreetCode NYC app. It uses Next.js with server API routes, rather than the original ChatGPT Sites / Cloudflare runtime. It is intended for Hostinger's Node.js Web App hosting, not WordPress or static GitHub Pages.
 
@@ -37,7 +37,10 @@ Hostinger UI fields can vary. Follow the commands above where overrides are offe
 - Eight allowlisted MTA subway/SIR prediction feeds.
 - JSON all-alerts feed filtered to subway/SIR and subway GTFS-Realtime alerts.
 - 496 station platform groups in a bundled static catalog.
-- Browser-local favorites, line/name filters, platform direction, and schematic station map.
+- An interactive geographic map with 444 station complexes, pan/zoom, official line colors, and 496 selectable platform groups.
+- Quickest predicted station-to-station trips with waiting, transfers, and a user-selected 1–30 minute boarding allowance.
+- Nearby station discovery around either endpoint or an explicitly requested device location; straight-line distances, not walking directions. Coordinates stay in the browser.
+- Browser-local favorites, line/name filters, and platform direction.
 - Automatic polling 30 seconds after each completed refresh while the page is visible and not paused.
 - Error retries back off to 60, 120, and 240 seconds. Returning to a visible tab refreshes again.
 - A 25-second process-local cache coalesces concurrent requests. A previously successful value can be served as explicitly stale for up to five minutes during upstream failure.
@@ -48,7 +51,15 @@ Hostinger UI fields can vary. Follow the commands above where overrides are offe
 | Path | Purpose |
 | --- | --- |
 | app/page.tsx | Dashboard and refresh lifecycle |
-| app/globals.css | Responsive dark visual theme |
+| app/globals.css | Responsive dark subway-signage theme |
+| app/components/JourneyPlanner.tsx | Interactive map, trip form, nearby stations, itinerary |
+| app/components/LineBadge.tsx | Shared line badges |
+| app/api/journey/route.ts | Fresh-feed journey endpoint and advisory matching |
+| lib/transit/journey.js | Earliest-arrival search over explicit train predictions |
+| lib/transit/nearby.js | Local geographic proximity calculation |
+| lib/transit/map-data.json | Static station/transfer graph |
+| public/subway-map.json | Map lines, station complexes, and borough outlines |
+| scripts/build-map-data.py | Reproducible reference-data import |
 | app/api/arrivals/route.ts | Arrival feed HTTP endpoint |
 | app/api/alerts/route.ts | Alerts HTTP endpoint |
 | lib/transit/feed.js | Bounded GTFS-Realtime decoding and feed allowlist |
@@ -70,7 +81,11 @@ There are no cloud accounts, background push notifications, live accessible rout
 
 After a production build, run `npm run test:smoke` to check the local HTTP server or `npm run test:live` to additionally check all live upstream feeds. Live checks depend on MTA availability.
 
-Run `npm test` for 18 automated tests, including 8,670 routing comparisons against an independent shortest-path oracle. Run `npm run build` for compilation and TypeScript checking. See docs/VALIDATION.md for the migration verification record and outstanding hosted checks.
+Run `npm test` for 30 automated tests, including 8,670 routing comparisons against an independent shortest-path oracle. Run `npm run build` for compilation and TypeScript checking. See docs/VALIDATION.md for the migration verification record and outstanding hosted checks.
+
+## Map and trip-planning update
+
+See [docs/MAP_UPDATE.md](docs/MAP_UPDATE.md) for the new behavior, limitations, data sources, and deployment verification. The main planner uses live predictions; the separate route lab remains a teaching simulation.
 
 ## Group ownership
 
