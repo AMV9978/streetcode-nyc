@@ -66,9 +66,16 @@ test("excludes cancelled, deleted, skipped and past predictions", () => {
     { cancel: true },
     { deleted: true },
     { skip: true },
-    { time: 900 },
+    { time: 900, departure: 950 },
   ])
     assert.equal(decodeFeed(fixture(opts), 1000).arrivals.length, 0);
+});
+test("keeps a train dwelling at the platform and records its terminal", () => {
+  // Arrived at 990, leaves at 1010: still boardable at 1000.
+  const f = decodeFeed(fixture({ time: 990, departure: 1010 }), 1000);
+  assert.equal(f.arrivals.length, 1);
+  assert.equal(f.arrivals[0].departure, 1010);
+  assert.equal(f.arrivals[0].dest, "L01N");
 });
 test("rejects malformed, truncated, differential and oversized payloads", () => {
   assert.throws(() => fields(Uint8Array.of(10, 50, 1)));

@@ -73,6 +73,17 @@ try {
   await check("/api/alerts?format=invalid", 400);
   await check("/api/journey?from=invalid&to=L01", 400);
   await check("/api/journey?from=L01&to=L03&readyIn=100", 400);
+  await check("/algorithms", 200, (body) => assert.match(body, /algorithms/i));
+  await check("/manifest.webmanifest", 200);
+  await check("/robots.txt", 200, (body) => assert.match(body, /Disallow: \/api\//));
+  await check("/api/arrivals?feed=l&stop=<script>", 400);
+  await check("/api/elevators?station=nope", 400);
+  await check("/api/reliability?route=bad!", 400);
+  await check("/", 200, (_, response) => {
+    assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+    assert.match(response.headers.get("content-security-policy") || "", /frame-ancestors 'none'/);
+    assert.equal(response.headers.get("x-powered-by"), null);
+  });
   await check("/subway-map.json", 200, (body) => {
     assert.equal(body.stations.length, 496);
     assert.ok(body.routes.find((r) => r.id === "D" && r.color === "#EB6800"));
@@ -102,6 +113,21 @@ try {
       assert.ok(Array.isArray(body.legs));
       if (body.found) assert.ok(body.arrival > body.checkedAt);
     });
+    await check("/api/arrivals?feed=l&stop=L03", 200, (body) => {
+      assert.ok(body.arrivals.every((a) => a.stopId.startsWith("L03")));
+    });
+    await check("/api/arrivals?feed=l&format=protobuf", 200);
+    await check("/api/journey?from=127&to=235&readyIn=3&scope=complex", 200, (body) => {
+      assert.ok(Array.isArray(body.options));
+      assert.ok(body.stats && Number.isFinite(body.stats.tripsScanned));
+    });
+    await check("/api/graph", 200, (body) => {
+      assert.ok(body.edges.length > 100, "graph has edges");
+    });
+    await check("/api/elevators?station=127", 200, (body) =>
+      assert.ok(Array.isArray(body.elevators)),
+    );
+    await check("/api/reliability", 200);
     for (const format of ["json", "protobuf"]) {
       await check(`/api/alerts?format=${format}`, 200, (body) => {
         assert.ok(body.timestamp > 0);

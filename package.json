@@ -1,6 +1,6 @@
 {
   "name": "streetcode-nyc",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -15,7 +15,7 @@
     "test:live": "node scripts/smoke.mjs --live"
   },
   "dependencies": {
-    "next": "16.3.4",
+    "next": "16.4.6",
     "react": "19.2.6",
     "react-dom": "19.2.6"
   },

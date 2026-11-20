@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 """Build compact map geometry and transfer metadata from an official MTA GTFS ZIP.
 
-Usage: python3 scripts/build-map-data.py /path/to/gtfs.zip [--land boroughs.geojson]
-The input station catalog must be generated from the same GTFS release.
+Usage: python3 scripts/build-map-data.py /path/to/gtfs.zip [--land boroughs.geojson] [--keep-catalog]
+
+By default public/stations.json is regenerated from the same GTFS release
+(parent stations from stops.txt, lines from trips.txt + stop_times.txt), so a
+new or renamed station never breaks the import. --keep-catalog keeps the
+existing catalog and fails if its station IDs no longer match the GTFS.
+Borough outlines (--land) are optional; without it the existing outlines in
+public/subway-map.json are kept.
 This is geographic reference data, not an assertion of current train service.
 """
 import argparse
@@ -119,12 +125,45 @@ def load_land(path):
     return result
 
 
+def build_catalog(gtfs_path):
+    """Parent stations with the lines that stop there, in GTFS order."""
+    with ZipFile(gtfs_path) as archive:
+        stops = list(read_rows(archive, "stops.txt"))
+        parent_of = {r["stop_id"]: (r.get("parent_station") or r["stop_id"]) for r in stops}
+        route_order = [r["route_id"] for r in read_rows(archive, "routes.txt")]
+        trip_route = {r["trip_id"]: r["route_id"] for r in read_rows(archive, "trips.txt")}
+        served = defaultdict(set)
+        for row in read_rows(archive, "stop_times.txt"):
+            route = trip_route.get(row["trip_id"])
+            if route:
+                served[parent_of.get(row["stop_id"], row["stop_id"])].add(route)
+    rank = {r: i for i, r in enumerate(route_order)}
+    catalog = []
+    for r in stops:
+        if r.get("location_type") != "1":
+            continue
+        catalog.append({
+            "id": r["stop_id"],
+            "name": r["stop_name"],
+            "lat": round(float(r["stop_lat"]), 6),
+            "lon": round(float(r["stop_lon"]), 6),
+            "routes": sorted(served.get(r["stop_id"], set()), key=lambda x: rank.get(x, 99)),
+        })
+    return catalog
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("gtfs", type=Path)
     parser.add_argument("--land", type=Path)
+    parser.add_argument("--keep-catalog", action="store_true")
     args = parser.parse_args()
-    stations = json.loads((ROOT / "public/stations.json").read_text())
+    if args.keep_catalog:
+        stations = json.loads((ROOT / "public/stations.json").read_text())
+    else:
+        stations = build_catalog(args.gtfs)
+        (ROOT / "public/stations.json").write_text(json.dumps(stations, separators=(",", ":")) + "\n")
+        print(f"public/stations.json: {len(stations)} stations regenerated from GTFS")
     ids = {station["id"] for station in stations}
     parents = {station_id: station_id for station_id in ids}
 
@@ -199,9 +238,15 @@ def main():
     meta = {"generatedAt": datetime.now(timezone.utc).isoformat(), "source": SOURCE,
             "feedVersion": info["feed_version"],
             "validThrough": datetime.strptime(info["feed_end_date"], "%Y%m%d").date().isoformat()}
+    land = load_land(args.land)
+    if not land:
+        try:
+            land = json.loads((ROOT / "public/subway-map.json").read_text()).get("land", [])
+        except (OSError, ValueError):
+            land = []
     public = {**meta, "routes": routes, "stations": stations, "complexes": complexes,
-              "land": load_land(args.land)}
-    if args.land:
+              "land": land}
+    if land:
         public["landSource"] = LAND_SOURCE
     backend = {**meta, "stations": stations, "complexes": complexes, "transfers": transfers}
     for relative, payload in [("public/subway-map.json", public), ("lib/transit/map-data.json", backend)]:

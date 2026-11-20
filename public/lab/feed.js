@@ -87,9 +87,11 @@ export function decodeFeed(bytes, now = Math.floor(Date.now() / 1000)) {
       const stop = fields(rawStop),
         relationship = num(stop, 5);
       if (relationship === 1 || relationship === 2) continue;
-      const time = num(nested(stop, 2), 2) ?? num(nested(stop, 3), 2),
+      const departure = num(nested(stop, 3), 2),
+        time = num(nested(stop, 2), 2) ?? departure,
         stopId = str(stop, 4);
-      if (time !== null && stopId && time >= now && time <= now + 3600)
+      // A train still dwelling at the platform (departure ahead) is kept.
+      if (time !== null && stopId && (departure ?? time) >= now && time <= now + 3600)
         arrivals.push({ route, trip, stopId, time });
     }
   }
@@ -97,6 +99,7 @@ export function decodeFeed(bytes, now = Math.floor(Date.now() / 1000)) {
   return { version, timestamp, trips, ageSeconds: now - timestamp, arrivals };
 }
 export const feeds = {
+  si: { name: "Staten Island Railway", path: "gtfs-si" },
   numbered: { name: "1 / 2 / 3 / 4 / 5 / 6 / 7", path: "gtfs" },
   ace: { name: "A / C / E", path: "gtfs-ace" },
   bdfm: { name: "B / D / F / M", path: "gtfs-bdfm" },

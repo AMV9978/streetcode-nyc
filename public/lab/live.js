@@ -70,7 +70,13 @@ $("refresh-feed").onclick = async () => {
     const url = feedUrl(selectedFeed);
     $("feed-source").href = url;
     $("feed-source").textContent = "Source: official MTA binary feed ↗";
-    const response = await fetch(url, { signal: AbortSignal.timeout(12000) });
+    // MTA's endpoint does not allow cross-origin browser requests, so the raw
+    // protobuf bytes come through this site's server (unchanged, cached 25 s)
+    // and are decoded right here in the browser by feed.js.
+    const response = await fetch(
+      `/api/arrivals?feed=${encodeURIComponent(selectedFeed)}&format=protobuf`,
+      { signal: AbortSignal.timeout(15000) },
+    );
     if (!response.ok) throw Error(`MTA returned HTTP ${response.status}`);
     const bytes = new Uint8Array(await response.arrayBuffer());
     fetchTime = Math.floor(Date.now() / 1000);
@@ -80,7 +86,7 @@ $("refresh-feed").onclick = async () => {
     render();
   } catch (error) {
     $("feed-status").textContent =
-      `Live feed unavailable. ${error.message}. Network access or browser cross-origin restrictions may prevent retrieval. The route lab remains available; no sample data is substituted.`;
+      `Live feed unavailable. ${error.message}. The route lab remains available; no sample data is substituted.`;
   } finally {
     $("refresh-feed").disabled = false;
     $("feed").disabled = false;

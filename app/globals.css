@@ -1771,3 +1771,441 @@ footer a {
   background: #f6bc26;
   margin-right: 5px;
 }
+
+/* ---------- Audit update (Nov 2026) ---------- */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.segmented button small {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.8;
+  margin-top: 2px;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.show-more {
+  display: block;
+  margin: 6px auto 0;
+  font-size: 12px;
+}
+.accuracy-note {
+  font-size: 11px;
+  color: #a7b9d1;
+  line-height: 1.7;
+  margin: 10px 0 0;
+  border-top: 1px dashed var(--line);
+  padding-top: 10px;
+}
+.alert-scope {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  border: 1px solid #4a5d79;
+  color: #b9c9df;
+  border-radius: 999px;
+  padding: 2px 7px;
+  margin-right: 7px;
+  vertical-align: 1px;
+}
+.alert-scope.here {
+  border-color: var(--yellow);
+  color: var(--yellow);
+}
+.elsewhere-alerts {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #aebdd0;
+}
+.elsewhere-alerts p {
+  margin: 8px 0;
+  line-height: 1.5;
+}
+/* Elevator status on the arrivals panel. */
+.access-panel {
+  margin-top: 26px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px 18px;
+  background: #0e1828;
+  font-size: 13px;
+}
+.access-panel p {
+  margin: 8px 0;
+  line-height: 1.6;
+}
+.access-panel a {
+  color: var(--yellow);
+}
+.elevator-list {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 0;
+  display: grid;
+  gap: 8px;
+}
+.elevator-list li {
+  display: grid;
+  grid-template-columns: 112px 1fr;
+  gap: 10px;
+  align-items: start;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.elevator-list li > span {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #8fe3b5;
+}
+.elevator-list li.out > span {
+  color: #ff9d8a;
+}
+.elevator-list li.planned > span {
+  color: #ffdf93;
+}
+.elevator-list small {
+  display: block;
+  color: #9fb1c9;
+}
+.elevator-list details {
+  margin-top: 4px;
+}
+.elevator-list details p {
+  white-space: pre-line;
+  color: #c8d3e1;
+}
+/* Trip planner additions. */
+.check-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 14px 0 4px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.check-row input {
+  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--yellow);
+}
+.check-row small {
+  display: block;
+  font-weight: 500;
+  color: #a7b9d1;
+  font-size: 11px;
+  margin-top: 3px;
+  line-height: 1.5;
+}
+.option-tabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+  margin: 4px 0 16px;
+}
+.option-tabs button {
+  text-align: left;
+  border: 1px solid #455671;
+  background: #0c1625;
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: #c8d3e1;
+}
+.option-tabs button.active {
+  border-color: var(--yellow);
+  background: #1d2a1f00;
+  box-shadow: inset 0 0 0 1px var(--yellow);
+}
+.option-tabs span {
+  display: block;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: #9fb3cf;
+}
+.option-tabs strong {
+  display: block;
+  font-size: 20px;
+  margin: 3px 0;
+  color: #fff;
+}
+.option-tabs small {
+  font-size: 11px;
+  color: #aebdd0;
+}
+.trip-estimate {
+  margin: 14px 0;
+  padding: 14px;
+  border: 1px dashed #5b6e8b;
+  border-radius: 10px;
+  text-align: left;
+}
+.trip-estimate strong {
+  display: block;
+  font-size: 26px;
+  margin: 6px 0;
+}
+.trip-estimate p {
+  font-size: 11px !important;
+}
+.search-stats {
+  margin-top: 14px;
+  font-size: 12px;
+  color: #aebdd0;
+}
+.search-stats summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: #dbe4f0;
+}
+.search-stats p {
+  line-height: 1.6;
+}
+.search-stats dl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 10px 0;
+}
+.search-stats dl div {
+  background: #0c1625;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.search-stats dt {
+  font-size: 10px;
+  color: #9fb3cf;
+}
+.search-stats dd {
+  margin: 2px 0 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #fff;
+}
+.search-stats a {
+  color: var(--yellow);
+}
+/* /algorithms */
+.algo-page .intro {
+  align-items: stretch;
+}
+.algo-graph-card {
+  flex: 0 0 300px;
+  border: 1px solid #344256;
+  border-radius: 14px;
+  padding: 16px 18px;
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: #aebdd0;
+}
+.algo-graph-card strong {
+  font-size: 22px;
+  color: #fff;
+}
+.algo-graph-card .text-button {
+  align-self: flex-start;
+  margin-top: 6px;
+}
+.algo-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 370px;
+  border: 1px solid #344256;
+  border-radius: 18px;
+  overflow: clip;
+  background: var(--panel);
+}
+.algo-map {
+  min-width: 0;
+  background: #0b1825;
+}
+.replay {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: #c3d1e2;
+}
+.replay button {
+  border: 1px solid #64748b;
+  background: #1c2b41;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-weight: 700;
+  font-size: 12px;
+  min-width: 92px;
+}
+.replay input {
+  flex: 1;
+  accent-color: var(--yellow);
+}
+.replay span {
+  min-width: 140px;
+  text-align: right;
+}
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 16px 0 6px;
+}
+.presets button {
+  border: 1px solid #455671;
+  background: #0c1625;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: #c8d3e1;
+}
+.algo-results,
+.algo-explain,
+.algo-accuracy {
+  margin: 44px 0;
+}
+.algo-results h2,
+.algo-accuracy h2 {
+  font-size: 28px;
+  letter-spacing: -1px;
+  margin: 10px 0 18px;
+}
+.algo-accuracy > p {
+  max-width: 760px;
+  color: #bcc9da;
+  line-height: 1.7;
+  font-size: 14px;
+}
+.algo-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #344256;
+  border-radius: 14px;
+}
+.algo-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.algo-table th,
+.algo-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  white-space: nowrap;
+}
+.algo-table thead th {
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #9fb3cf;
+  background: #0e1828;
+}
+.algo-table tbody tr.selected {
+  background: #1b293c;
+}
+.algo-table th button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 0;
+  background: none;
+  color: #fff;
+  font-weight: 800;
+  font-size: 13px;
+  padding: 0;
+  cursor: pointer;
+}
+.algo-table th button i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.algo-table td.win {
+  color: var(--yellow);
+  font-weight: 800;
+}
+.accuracy-table td strong {
+  display: block;
+  font-size: 16px;
+}
+.accuracy-table td small {
+  color: #9fb1c9;
+  font-size: 10px;
+}
+.algo-route {
+  margin-top: 24px;
+  max-width: 640px;
+}
+.algo-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+.algo-cards article {
+  border: 1px solid #344256;
+  border-top: 4px solid;
+  border-radius: 12px;
+  padding: 16px 18px;
+  background: var(--panel);
+}
+.algo-cards h3 {
+  margin: 0 0 6px;
+  font-size: 17px;
+}
+.algo-cards code {
+  font-size: 12px;
+  color: var(--yellow);
+}
+.algo-cards p {
+  font-size: 13px;
+  line-height: 1.65;
+  color: #bcc9da;
+}
+@media (max-width: 1150px) {
+  .algo-workspace {
+    grid-template-columns: 1fr;
+  }
+  .algo-workspace .trip-panel {
+    border-left: 0;
+    border-top: 1px solid #344256;
+  }
+}
+@media (max-width: 850px) {
+  .algo-page .intro {
+    flex-direction: column;
+  }
+  .algo-graph-card {
+    flex: none;
+  }
+  .replay span {
+    display: none;
+  }
+}
+@media (max-width: 620px) {
+  /* Room for the new Algorithms link; the route demo is linked in the page. */
+  nav .lab-nav {
+    display: none;
+  }
+}

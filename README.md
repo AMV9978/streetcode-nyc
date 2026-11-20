@@ -1,10 +1,19 @@
 # StreetCode NYC
 
-A group bootcamp project that brings NYC subway arrival predictions, an interactive subway map, quickest predicted trips, nearby-station discovery, saved stations, and service advisories into one readable dashboard.
+A group bootcamp project. It combines live NYC subway arrivals, an interactive map, a live trip planner that knows about elevators, and an **algorithms lab** where BFS, Dijkstra, A* and a fewest-changes search run on a graph of the whole subway learned from the trains running right now.
 
-This repository is the portable Node.js edition of the deployed StreetCode NYC app. It uses Next.js with server API routes, rather than the original ChatGPT Sites / Cloudflare runtime. It is intended for Hostinger's Node.js Web App hosting, not WordPress or static GitHub Pages.
+Live site: https://streetcodenyc.angelovasquez.net
 
-Full click-by-click instructions: [docs/UPLOAD_GUIDE.md](docs/UPLOAD_GUIDE.md).
+## What makes it different
+
+| Feature | How it works |
+| --- | --- |
+| **Live trip planner (RAPTOR)** | Round-based search over individual MTA train predictions. Round *k* finds the earliest arrival using at most *k* trains, which gives you options like "33 min, 1 change" or "44 min, no changes". It is property-tested against an independent search on 3,000 random networks. |
+| **Algorithms on the live subway** (`/algorithms`) | Builds a weighted graph of every station from current predictions: median ride time per segment, and an expected wait of half the current gap between trains. It then races BFS, Dijkstra, A* (with an admissible straight-line heuristic) and lexicographic fewest-changes Dijkstra, shows states expanded and run time, and animates each one exploring the map. |
+| **Step-free trips** | Uses MTA's elevator list and live outage feed to plan only through stations with working ADA elevators. Each station's panel shows elevator status and MTA's suggested alternative route. |
+| **Countdown accuracy** | The server watches each train approach each stop and scores what the countdown said 1, 3, 5, 10 and 20 minutes earlier against when the train arrived. |
+| **Honest "no trip" answers** | Says *why*: the trip needs the Staten Island Ferry, no trains from that station, or the trip is longer than the 1-hour live window. In the last case it adds a typical travel time from the live graph. |
+| **Destination labels** | Shows "L to 8 Av" instead of only "Northbound L", using each trip's terminal from the feed. |
 
 ## Run locally
 
@@ -12,83 +21,63 @@ Use Node.js 22.13 or later (22.x or 24.x).
 
 ```sh
 npm ci
-npm test
-npm run build
-npm start
+npm test          # 53 unit and property tests
+npm run build     # production build + TypeScript check
+npm start         # http://localhost:3000
 ```
 
-Open http://localhost:3000. For development, use `npm run dev`.
-`PORT` may be set by the hosting platform. No MTA API key is configured or required by this implementation.
+`npm run test:smoke` checks the local HTTP server. `npm run test:live` also checks every MTA feed. No MTA API key is needed.
 
-## Hostinger deployment
+`MTA_FEED_BASE` (optional) points the server at a different MTA-compatible base URL. This is useful for replaying a recorded snapshot in tests. Leave it unset in production.
 
-1. Upload the contents of this folder to AMV9978/streetcode-nyc. Keep package.json at the repository root.
-2. In Hostinger, select Websites → Create Website → Web App → Import Git Repository.
-3. Authorize the repository, select the main branch, and select the Next.js backend application type.
-4. Set Node.js to 22.x (at least 22.13) or 24.x. Root directory: repository root. Install: npm ci. Build: npm run build. Start: npm start. Build output: .next if requested.
-5. Use a temporary domain first. Do not select static export or upload to the portfolio's WordPress directory.
-6. Inspect deployment logs. Test arrivals and both alert formats on the deployed address before attaching a custom domain.
-7. Add a custom domain through Hostinger using the DNS values it supplies. Keep the existing deployed app available until this replacement passes checks.
+## Deployment (Hostinger Node.js app)
 
-Hostinger UI fields can vary. Follow the commands above where overrides are offered; a successful static frontend deployment alone is not sufficient.
+Unchanged: Next.js preset, Node 22.x/24.x, root `./`, install `npm ci`, build `npm run build`, start `npm start`, output `.next`. Pushing to `main` redeploys if auto-deploy is on. See [docs/UPLOAD_GUIDE.md](docs/UPLOAD_GUIDE.md).
 
-## Features and behavior
+## API
 
-- Eight allowlisted MTA subway/SIR prediction feeds.
-- JSON all-alerts feed filtered to subway/SIR and subway GTFS-Realtime alerts.
-- 496 station platform groups in a bundled static catalog.
-- An interactive geographic map with 444 station complexes, pan/zoom, official line colors, and 496 selectable platform groups.
-- Quickest predicted station-to-station trips with waiting, transfers, and a user-selected 1–30 minute boarding allowance.
-- Nearby station discovery around either endpoint or an explicitly requested device location; straight-line distances, not walking directions. Coordinates stay in the browser.
-- Browser-local favorites, line/name filters, and platform direction.
-- Automatic polling 30 seconds after each completed refresh while the page is visible and not paused.
-- Error retries back off to 60, 120, and 240 seconds. Returning to a visible tab refreshes again.
-- A 25-second process-local cache coalesces concurrent requests. A previously successful value can be served as explicitly stale for up to five minutes during upstream failure.
-- An algorithm lab at /lab/index.html demonstrates routing on a curated simulation network. Its weights, disruptions, and accessibility examples are illustrative, not live trip-planning advice.
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/arrivals?feed=l[&stop=L03][&format=protobuf]` | Decoded feed. With `stop`, only that station's predictions. With `format=protobuf`, the raw bytes, which the lab decodes in the browser. |
+| `GET /api/alerts?format=json[&routes=L,4]` | Subway alerts, optionally only for those lines |
+| `GET /api/journey?from=&to=&readyIn=3[&scope=complex][&stepFree=1]` | Pareto trip options, search stats, reason codes, estimate and relevant advisories |
+| `GET /api/graph` | Live whole-network graph (compact rows) |
+| `GET /api/elevators?station=L03` | Elevators and outages at a station complex |
+| `GET /api/reliability[?route=L]` | Countdown accuracy summary |
+
+`/api/journey` and `/api/graph` are rate-limited per client. Every response is `Cache-Control: no-store`. Upstream MTA calls are cached and coalesced: 25 s for trains, 60 s for the graph and outages, 6 h for the elevator list.
 
 ## Structure
 
 | Path | Purpose |
 | --- | --- |
-| app/page.tsx | Dashboard and refresh lifecycle |
-| app/globals.css | Responsive dark subway-signage theme |
-| app/components/JourneyPlanner.tsx | Interactive map, trip form, nearby stations, itinerary |
-| app/components/LineBadge.tsx | Shared line badges |
-| app/api/journey/route.ts | Fresh-feed journey endpoint and advisory matching |
-| lib/transit/journey.js | Earliest-arrival search over explicit train predictions |
-| lib/transit/nearby.js | Local geographic proximity calculation |
-| lib/transit/map-data.json | Static station/transfer graph |
-| public/subway-map.json | Map lines, station complexes, and borough outlines |
-| scripts/build-map-data.py | Reproducible reference-data import |
-| app/api/arrivals/route.ts | Arrival feed HTTP endpoint |
-| app/api/alerts/route.ts | Alerts HTTP endpoint |
-| lib/transit/feed.js | Bounded GTFS-Realtime decoding and feed allowlist |
-| lib/transit/service.js | Upstream fetch, cache, fallback, alert normalization |
-| public/stations.json | Bundled station catalog |
-| public/lab/ | Educational routing simulation |
-| tests/ | Feed, service, heap, and routing tests |
+| `app/page.tsx` | Dashboard: arrivals, alerts, elevator status, accuracy |
+| `app/components/JourneyPlanner.tsx` | Map, trip form, Pareto options, nearby stations |
+| `app/components/AlgorithmLab.tsx` / `app/algorithms/page.tsx` | Algorithms on the live subway |
+| `app/api/*` | Arrivals, alerts, journey, graph, elevators, reliability |
+| `lib/transit/raptor.js` | RAPTOR trip search (Pareto: arrival time × train changes) |
+| `lib/transit/journey.js` | Independent earliest-arrival search used as a test oracle |
+| `lib/transit/graph.js` | Live graph builder; BFS, Dijkstra, A*, fewest-changes |
+| `lib/transit/heap.js` | Binary min-heap |
+| `lib/transit/reliability.js` | Countdown accuracy tracker |
+| `lib/transit/elevators.js` | MTA elevator data → step-free stations |
+| `lib/transit/routes.js` | Line normalisation (6X → 6) and alert relevance |
+| `lib/transit/feed.js` | Bounded GTFS-Realtime decoder and feed allowlist |
+| `lib/transit/service.js` | Upstream fetch, shared cache, stale fallback |
+| `lib/http/limit.js` | Token-bucket rate limiter |
+| `scripts/build-map-data.py` | Rebuilds the station catalog, transfers and map from MTA GTFS |
+| `.github/workflows/` | CI (tests, build, smoke, audit) and the weekly map-data refresh PR |
+| `public/lab/` | The original 17-station teaching simulation |
+| `tests/` | Feed, service, routing, RAPTOR, graph, reliability, elevator and limiter tests |
 
 ## Data and limitations
 
-MTA sources: https://api.mta.info/ and https://www.mta.info/developers
-The station catalog was generated from https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip on October 27, 2026. It is not refreshed automatically. Route memberships include trips in the source schedule and do not prove current service at a station.
-
-Arrival times are predictions, not guarantees. No prediction does not mean no service. Feed timestamps and stale indicators matter. This is an independent student project, not an official MTA service.
-
-There are no cloud accounts, background push notifications, live accessible route guarantees, or live train GPS positions. Favorites are per browser/device. Polling happens during an active visit, not continuously with all visitors offline. Process caches do not persist across restarts or synchronize across multiple instances.
-
-## Verification
-
-After a production build, run `npm run test:smoke` to check the local HTTP server or `npm run test:live` to additionally check all live upstream feeds. Live checks depend on MTA availability.
-
-Run `npm test` for 30 automated tests, including 8,670 routing comparisons against an independent shortest-path oracle. Run `npm run build` for compilation and TypeScript checking. See docs/VALIDATION.md for the migration verification record and outstanding hosted checks.
-
-## Map and trip-planning update
-
-See [docs/MAP_UPDATE.md](docs/MAP_UPDATE.md) for the new behavior, limitations, data sources, and deployment verification. The main planner uses live predictions; the separate route lab remains a teaching simulation.
+- MTA sources: https://api.mta.info/ and https://www.mta.info/developers. Static data comes from https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip. The weekly workflow opens a pull request when it changes.
+- Arrival times are predictions, not guarantees. No prediction does not mean no service.
+- Step-free mode is an approximation. It counts a station when MTA lists an ADA elevator there and none of its non-redundant ADA elevators is out. It does not model which entrance or direction each elevator serves, or stations accessible by ramp only.
+- Accuracy numbers and caches are in memory. They reset when the server restarts and are not shared between multiple server instances.
+- Not affiliated with the MTA. Independent student project.
 
 ## Group ownership
 
-Add the actual group members and their contributions before submission. Do not attribute the entire group project to one member solely because their account hosts the repository. Add collaborators in GitHub repository settings as agreed by the team.
-
-No open-source license has been selected for the group's authored code. The group should agree on licensing before granting reuse permissions; third-party data and dependencies retain their own terms.
+Add the group members and their contributions before submission. No open-source license has been chosen yet. Agree on one as a group.

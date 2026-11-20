@@ -29,32 +29,81 @@ type Network = {
   generatedAt: string;
   validThrough: string;
 };
-type Leg = {
+export type Leg = {
   kind: string;
   route?: string;
   from: string;
   to: string;
   fromStop?: string;
+  dest?: string;
   departure?: number;
   arrival?: number;
   seconds?: number;
   stops?: string[];
 };
-type Journey = {
+type Option = {
   found: boolean;
-  sameStation?: boolean;
   walkOnly?: boolean;
   legs: Leg[];
   arrival?: number;
   departure?: number;
   transfers?: number;
+};
+type Journey = Option & {
+  sameStation?: boolean;
+  options?: Option[];
+  reason?: string;
+  estimate?: {
+    minutes: number;
+    transfers: number;
+    routes: string[];
+    basis: string;
+  } | null;
+  stats?: {
+    rounds: number;
+    trips: number;
+    tripsScanned: number;
+    stopEventsScanned: number;
+    stationsReached: number;
+    ms: number;
+  };
+  stepFree?: boolean;
+  accessAvailable?: boolean;
   checkedAt: number;
   timestamp: number;
   missingFeeds: string[];
-  advisories: { id: string; title: string; description: string }[];
+  advisories: {
+    id: string;
+    title: string;
+    description: string;
+    relevance?: string;
+  }[];
   alertsAvailable: boolean;
   feedsChecked: number;
 };
+/** One searchable entry per station complex (Times Sq is one place). */
+export type Place = {
+  id: string;
+  name: string;
+  routes: string[];
+  complex: string;
+};
+const ROUTE_ORDER = "1 2 3 4 5 6 6X 7 7X A C E B D F FX M G J Z L N Q R W GS FS H SI".split(" ");
+const sortRoutes = (routes: string[]) =>
+  [...routes].sort(
+    (a, b) =>
+      (ROUTE_ORDER.indexOf(a) + 1 || 99) - (ROUTE_ORDER.indexOf(b) + 1 || 99),
+  );
+export function placesFrom(network: {
+  complexes: { id: string; name: string; routes: string[]; stations: string[] }[];
+}): Place[] {
+  return network.complexes.map((c) => ({
+    id: c.stations[0],
+    name: c.name,
+    routes: sortRoutes(c.routes),
+    complex: c.id,
+  }));
+}
 const project = (lon: number, lat: number) => [
   (lon + 74.27) * 2100,
   (40.94 - lat) * 2800,
@@ -83,15 +132,15 @@ const time = (seconds: number) =>
     minute: "2-digit",
   });
 
-function StationField({
+export function StationField({
   label,
   value,
   stations,
   onSelect,
 }: {
   label: string;
-  value: Station | undefined;
-  stations: Station[];
+  value: Place | undefined;
+  stations: Place[];
   onSelect: (id: string) => void;
 }) {
   const [query, setQuery] = useState(""),
@@ -101,7 +150,7 @@ function StationField({
   const results = stations
     .filter((s) => normalize(s.name).includes(normalize(query)))
     .slice(0, 8);
-  const choose = (s: Station) => {
+  const choose = (s: Place) => {
     onSelect(s.id);
     setQuery("");
     setOpen(false);
@@ -184,7 +233,7 @@ function StationField({
               role="option"
               aria-selected={i === active}
               id={id + "-" + i}
-              key={s.id}
+              key={s.complex}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => choose(s)}
             >
@@ -205,7 +254,7 @@ function StationField({
   );
 }
 
-function SubwayMap({
+export function SubwayMap({
   network,
   from,
   to,
@@ -213,6 +262,8 @@ function SubwayMap({
   onFrom,
   onTo,
   onArrivals,
+  highlight,
+  heading = "THE SUBWAY, CONNECTED",
 }: {
   network: Network;
   from: string;
@@ -220,7 +271,10 @@ function SubwayMap({
   legs: Leg[];
   onFrom: (id: string) => void;
   onTo: (id: string) => void;
-  onArrivals: (id: string, direction?: string) => void;
+  onArrivals?: (id: string, direction?: string) => void;
+  /** Stations to tint, e.g. the order an algorithm explored them in. */
+  highlight?: { ids: string[]; color: string; current?: string };
+  heading?: string;
 }) {
   const svg = useRef<SVGSVGElement>(null),
     wrapper = useRef<HTMLDivElement>(null),
@@ -238,6 +292,20 @@ function SubwayMap({
   );
   const firstSelection = useRef(true);
   const selected = network.complexes.find((s) => s.id === picked);
+  // Trackpad pinch and Ctrl/⌘ + scroll zoom the map. Plain scrolling keeps
+  // scrolling the page, so the map never traps someone reading on a phone.
+  useEffect(() => {
+    const el = svg.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      const factor = Math.exp(-Math.max(-60, Math.min(60, e.deltaY)) / 120);
+      setCamera((c) => ({ ...c, z: Math.max(0.3, Math.min(7, c.z * factor)) }));
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
   useEffect(() => {
     if (!wrapper.current) return;
     const observer = new ResizeObserver(([entry]) =>
@@ -387,7 +455,7 @@ function SubwayMap({
     <div className="network-map">
       <div className="map-topline">
         <div>
-          <span className="live-dot" /> THE SUBWAY, CONNECTED
+          <span className="live-dot" /> {heading}
         </div>
         <span>Tap a station to begin</span>
       </div>
@@ -519,6 +587,22 @@ function SubwayMap({
               ))}
             </g>
           ))}
+          {highlight?.ids.map((id) => {
+            const s = stations[id];
+            if (!s) return null;
+            const [x, y] = xy(s);
+            return (
+              <circle
+                key={"h" + id}
+                cx={x}
+                cy={y}
+                r={(id === highlight.current ? 9 : 5.5) / camera.z}
+                fill={highlight.color}
+                opacity={id === highlight.current ? 1 : 0.55}
+                pointerEvents="none"
+              />
+            );
+          })}
           {ridePaths.map((p) => (
             <g key={p.id}>
               <path
@@ -644,7 +728,9 @@ function SubwayMap({
             ↗
           </button>
         </div>
-        <div className="map-hint">Drag to explore · + / − to zoom</div>
+        <div className="map-hint">
+          Drag to explore · + / − or pinch to zoom
+        </div>
         {selected && (
           <div
             className="map-station-card"
@@ -668,7 +754,7 @@ function SubwayMap({
             </div>
             {selected.stations.length > 1 && (
               <>
-                <label htmlFor="map-platform">Choose a platform / line</label>
+                <label htmlFor="map-platform">Platform for live arrivals</label>
                 <select
                   id="map-platform"
                   value={platform}
@@ -700,12 +786,14 @@ function SubwayMap({
                 B · Go here
               </button>
             </div>
-            <button
-              className="text-button"
-              onClick={() => onArrivals(platform)}
-            >
-              See live arrivals ↗
-            </button>
+            {onArrivals && (
+              <button
+                className="text-button"
+                onClick={() => onArrivals(platform)}
+              >
+                See live arrivals ↗
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -768,7 +856,6 @@ function NearbyStops({
     excludeComplex:
       reference === "location" ? "" : (anchor as Station)?.complex,
   });
-  const [platforms, setPlatforms] = useState<Record<string, string>>({});
   function locate() {
     setOpen(true);
     if (!navigator.geolocation) {
@@ -847,37 +934,19 @@ function NearbyStops({
       )}
       <div className="nearby-list">
         {candidates.map((s: Station & { meters: number }) => {
-          const members = network.stations.filter(
-            (n) => n.complex === s.complex,
-          );
-          const id = platforms[s.complex] || s.id;
-          const chosen = members.find((n) => n.id === id) || s;
+          const place = network.complexes.find((c) => c.id === s.complex);
+          const id = s.id;
           return (
             <div className="nearby-stop" key={s.complex}>
               <div>
-                <strong>{s.name}</strong>
+                <strong>{place?.name || s.name}</strong>
                 <small>About {Math.round(s.meters / 10) * 10} m away</small>
               </div>
               <div className="badges">
-                {chosen.routes.map((r) => (
+                {sortRoutes(place?.routes || s.routes).map((r) => (
                   <Badge key={r} route={r} />
                 ))}
               </div>
-              {members.length > 1 && (
-                <select
-                  aria-label={`Platform at ${s.name}`}
-                  value={id}
-                  onChange={(e) =>
-                    setPlatforms((p) => ({ ...p, [s.complex]: e.target.value }))
-                  }
-                >
-                  {members.map((n) => (
-                    <option key={n.id} value={n.id}>
-                      {n.name} · {n.routes.join(" ")}
-                    </option>
-                  ))}
-                </select>
-              )}
               <button
                 type="button"
                 onClick={() => {
@@ -900,6 +969,25 @@ function NearbyStops({
   );
 }
 
+const REASONS: Record<string, { title: string; body: string }> = {
+  ferry: {
+    title: "This trip needs the Staten Island Ferry.",
+    body: "The Staten Island Railway and the subway only connect by ferry at St George and Whitehall St–South Ferry. This planner covers trains only, so plan the ferry leg with MTA or NYC Ferry information.",
+  },
+  "not-step-free": {
+    title: "Step-free access isn't available at one end right now.",
+    body: "MTA's elevator data shows no working ADA elevator at your starting station or your destination. Try a nearby station, or turn off the step-free option to see the regular trip.",
+  },
+  "no-departures": {
+    title: "No trains are predicted from your starting station in the next hour.",
+    body: "This can happen late at night, during planned work, or when a feed is missing predictions. It does not prove that service has stopped.",
+  },
+  "beyond-horizon": {
+    title: "No live connection found in the next hour.",
+    body: "Live predictions only reach about an hour ahead, so long trips with several changes may not fit yet. Some later stops may also not have predictions.",
+  },
+};
+
 export default function JourneyPlanner({
   initialStation,
   onArrivals,
@@ -919,10 +1007,13 @@ export default function JourneyPlanner({
       to: string;
       version: number;
       readyIn: number;
+      stepFree: boolean;
     } | null>(null),
     [now, setNow] = useState(0),
     [retry, setRetry] = useState(0),
-    [readyIn, setReadyIn] = useState(3);
+    [readyIn, setReadyIn] = useState(3),
+    [stepFree, setStepFree] = useState(false),
+    [choice, setChoice] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
     setNetworkError(false);
@@ -955,11 +1046,18 @@ export default function JourneyPlanner({
     () => Object.fromEntries((network?.stations || []).map((s) => [s.id, s])),
     [network],
   );
-  const updateFrom = (id: string) => {
-    setFrom(id);
+  const places = useMemo(() => (network ? placesFrom(network) : []), [network]);
+  const placeOf = (id: string) =>
+    places.find((p) => p.complex === stationById[id]?.complex);
+  const reset = () => {
     setSubmitted(null);
     setResult(null);
     setError("");
+    setChoice(0);
+  };
+  const updateFrom = (id: string) => {
+    setFrom(id);
+    reset();
   };
   const updateTo = (id: string) => {
     setTo(id);
@@ -967,9 +1065,7 @@ export default function JourneyPlanner({
       document
         .getElementById("journey-form")
         ?.scrollIntoView({ behavior: "smooth", block: "start" });
-    setSubmitted(null);
-    setResult(null);
-    setError("");
+    reset();
   };
   useEffect(() => {
     setLoading(false);
@@ -992,21 +1088,27 @@ export default function JourneyPlanner({
       busy = true;
       setLoading(true);
       try {
-        const response = await fetch(
-          `/api/journey?from=${encodeURIComponent(submitted!.from)}&to=${encodeURIComponent(submitted!.to)}&readyIn=${submitted!.readyIn}`,
-          {
-            signal: AbortSignal.any([
-              controller.signal,
-              AbortSignal.timeout(30000),
-            ]),
-          },
-        );
+        const query = new URLSearchParams({
+          from: submitted!.from,
+          to: submitted!.to,
+          readyIn: String(submitted!.readyIn),
+          scope: "complex",
+        });
+        if (submitted!.stepFree) query.set("stepFree", "1");
+        const response = await fetch(`/api/journey?${query}`, {
+          signal: AbortSignal.any([
+            controller.signal,
+            AbortSignal.timeout(30000),
+          ]),
+        });
         const data = await response.json();
         if (!response.ok)
           throw Error(data.error || "Trip search is temporarily unavailable.");
         if (!stopped) {
           setResult(data);
           setError("");
+          // Keep the rider's chosen option if it still exists after a refresh.
+          setChoice((c) => (c < (data.options?.length || 1) ? c : 0));
         }
       } catch (e) {
         if (!stopped)
@@ -1054,8 +1156,21 @@ export default function JourneyPlanner({
         )}
       </section>
     );
-  const stale = !!result && (now - result.timestamp > 90 || !!error),
-    rideLegs = result?.legs.filter((l) => l.kind === "ride") || [];
+  const stale = !!result && (now - result.timestamp > 90 || !!error);
+  const options = result?.options?.length ? result.options : result ? [result] : [];
+  const shown: Option | null = options[Math.min(choice, options.length - 1)] || null;
+  const rideLegs = shown?.legs.filter((l) => l.kind === "ride") || [];
+  const nameOf = (stopId?: string) =>
+    stopId ? stationById[stopId.replace(/[NS]$/, "")]?.name : undefined;
+  const referenceExpired =
+    !!network.validThrough &&
+    new Date(network.validThrough + "T23:59:59-05:00").getTime() < Date.now();
+  const describeOption = (o: Option) =>
+    o.walkOnly
+      ? "Walk only"
+      : o.transfers
+        ? `${o.transfers} ${o.transfers === 1 ? "change" : "changes"}`
+        : "No changes";
   return (
     <section
       id="planner"
@@ -1066,7 +1181,7 @@ export default function JourneyPlanner({
         network={network}
         from={from}
         to={to}
-        legs={result && !stale ? result.legs : []}
+        legs={shown && !stale ? shown.legs : []}
         onFrom={updateFrom}
         onTo={updateTo}
         onArrivals={onArrivals}
@@ -1082,17 +1197,31 @@ export default function JourneyPlanner({
         <p className="trip-subtitle">
           Search below, or <a href="#subway-map">choose on the map ↓</a>
         </p>
+        {referenceExpired && (
+          <p className="warning">
+            The station and transfer reference was valid through{" "}
+            {network.validThrough}. Live train times are still current, but
+            new stations or changed transfers may be missing until the map data
+            is refreshed.
+          </p>
+        )}
         <form
           onSubmit={(e) => {
             e.preventDefault();
             if (from && to)
-              setSubmitted({ from, to, readyIn, version: Date.now() });
+              setSubmitted({
+                from,
+                to,
+                readyIn,
+                stepFree,
+                version: Date.now(),
+              });
           }}
         >
           <StationField
             label="From"
-            value={stationById[from]}
-            stations={network.stations}
+            value={placeOf(from)}
+            stations={places}
             onSelect={updateFrom}
           />
           <button
@@ -1110,8 +1239,8 @@ export default function JourneyPlanner({
           </button>
           <StationField
             label="To"
-            value={stationById[to]}
-            stations={network.stations}
+            value={placeOf(to)}
+            stations={places}
             onSelect={updateTo}
           />
           <div className="ready-setting">
@@ -1121,9 +1250,7 @@ export default function JourneyPlanner({
               value={readyIn}
               onChange={(e) => {
                 setReadyIn(Number(e.target.value));
-                setSubmitted(null);
-                setResult(null);
-                setError("");
+                reset();
               }}
             >
               {[1, 3, 5, 10, 15, 20, 30].map((n) => (
@@ -1133,8 +1260,25 @@ export default function JourneyPlanner({
               ))}
             </select>
           </div>
+          <label className="check-row">
+            <input
+              type="checkbox"
+              checked={stepFree}
+              onChange={(e) => {
+                setStepFree(e.target.checked);
+                reset();
+              }}
+            />
+            <span>
+              Step-free only
+              <small>
+                Board, change and leave only where MTA reports working ADA
+                elevators right now.
+              </small>
+            </span>
+          </label>
           <p className="field-help">
-            Same name, different lines? Choose the platform you’ll use.
+            Big stations count as one place: we check every platform there.
           </p>
           <button
             className="find-trip"
@@ -1169,6 +1313,7 @@ export default function JourneyPlanner({
               <div className="trip-features">
                 <span>◷ Live predictions</span>
                 <span>⇄ Transfer guidance</span>
+                <span>♿ Elevator-aware option</span>
               </div>
             </div>
           )}
@@ -1190,30 +1335,77 @@ export default function JourneyPlanner({
           )}
           {result && !result.found && (
             <div className="trip-empty">
-              <h3>No connection found in the next hour.</h3>
+              <h3>
+                {(REASONS[result.reason || ""] || REASONS["beyond-horizon"]).title}
+              </h3>
               <p>
-                Some trains or later stops may not have predictions yet. This
-                does not mean service has stopped. Try another platform or check
-                the official planner.
+                {(REASONS[result.reason || ""] || REASONS["beyond-horizon"]).body}
               </p>
+              {result.estimate && (
+                <div className="trip-estimate">
+                  <span className="eyebrow">TYPICAL TRIP RIGHT NOW</span>
+                  <strong>
+                    About {result.estimate.minutes}
+                    <small> min</small>
+                  </strong>
+                  <div className="trip-lines">
+                    {result.estimate.routes.map((r, i) => (
+                      <span key={i}>
+                        {i > 0 && <span className="route-arrow">→</span>}
+                        <Badge route={r} />
+                      </span>
+                    ))}
+                  </div>
+                  <p>{result.estimate.basis}</p>
+                </div>
+              )}
               <a href="https://www.mta.info" target="_blank" rel="noreferrer">
                 Check MTA travel information ↗
               </a>
             </div>
           )}
-          {result?.found && !result.sameStation && (
+          {result?.found && !result.sameStation && shown && (
             <>
+              {options.length > 1 && (
+                <div
+                  className="option-tabs"
+                  role="tablist"
+                  aria-label="Trip options"
+                >
+                  {options.map((o, i) => (
+                    <button
+                      key={i}
+                      role="tab"
+                      aria-selected={i === choice}
+                      className={i === choice ? "active" : ""}
+                      onClick={() => setChoice(i)}
+                    >
+                      <span>{i === 0 ? "Fastest" : "Fewer changes"}</span>
+                      <strong>
+                        {Math.max(
+                          0,
+                          Math.ceil(((o.arrival || now) - result.checkedAt) / 60),
+                        )}{" "}
+                        min
+                      </strong>
+                      <small>{describeOption(o)}</small>
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="trip-result-heading">
                 <div>
                   <span className="eyebrow">
-                    {stale ? "NEEDS A FRESH CHECK" : "QUICKEST PREDICTED TRIP"}
+                    {stale
+                      ? "NEEDS A FRESH CHECK"
+                      : choice === 0
+                        ? "QUICKEST PREDICTED TRIP"
+                        : "FEWER CHANGES"}
                   </span>
                   <strong>
                     {Math.max(
                       0,
-                      Math.ceil(
-                        ((result.arrival || now) - result.checkedAt) / 60,
-                      ),
+                      Math.ceil(((shown.arrival || now) - result.checkedAt) / 60),
                     )}
                     <small> min</small>
                   </strong>
@@ -1221,13 +1413,14 @@ export default function JourneyPlanner({
                 <span className="trip-arrival">
                   Arrive around
                   <br />
-                  <b>{time(result.arrival || now)} ET</b>
+                  <b>{time(shown.arrival || now)} ET</b>
                 </span>
               </div>
               <p className="trip-summary">
-                {result.walkOnly
+                {shown.walkOnly
                   ? "Walk within the station complex"
-                  : `${result.transfers ? `${result.transfers} train ${result.transfers === 1 ? "change" : "changes"}` : "No train changes"} · Includes waiting and transfer time`}
+                  : `${describeOption(shown)} · Includes waiting and transfer time`}
+                {result.stepFree ? " · Step-free stations only" : ""}
               </p>
               <div className="trip-lines">
                 {rideLegs.map((l, i) => (
@@ -1243,8 +1436,14 @@ export default function JourneyPlanner({
                   successful update before relying on them.
                 </p>
               )}
+              {result.stepFree && result.accessAvailable === false && (
+                <p className="warning">
+                  Elevator status could not be refreshed. Check MTA elevator
+                  information before you travel.
+                </p>
+              )}
               <ol className="itinerary">
-                {result.legs.map((leg, i) => (
+                {shown.legs.map((leg, i) => (
                   <li
                     key={i}
                     className={
@@ -1264,6 +1463,7 @@ export default function JourneyPlanner({
                         <div>
                           <strong>
                             Take the {leg.route?.replace(/X$/, "")} train
+                            {nameOf(leg.dest) ? ` toward ${nameOf(leg.dest)}` : ""}
                           </strong>
                           <p>
                             {stationById[leg.from]?.name} →{" "}
@@ -1273,7 +1473,8 @@ export default function JourneyPlanner({
                             {time(leg.departure!)}–{time(leg.arrival!)} ET ·{" "}
                             {leg.fromStop?.endsWith("N")
                               ? "Northbound"
-                              : "Southbound"}
+                              : "Southbound"}{" "}
+                            platform
                           </small>
                           <details>
                             <summary>
@@ -1341,14 +1542,57 @@ export default function JourneyPlanner({
           )}
           {!!result?.advisories.length && (
             <div className="journey-advisories">
-              <h3>On your lines</h3>
+              <h3>On your trip</h3>
               {result.advisories.slice(0, 5).map((a) => (
                 <details key={a.id}>
-                  <summary>{a.title}</summary>
+                  <summary>
+                    {a.relevance === "station" && (
+                      <span className="alert-scope here">On your route</span>
+                    )}
+                    {a.relevance === "line" && (
+                      <span className="alert-scope">Line-wide</span>
+                    )}
+                    {a.title}
+                  </summary>
                   <p>{a.description || "Check MTA for more details."}</p>
                 </details>
               ))}
             </div>
+          )}
+          {result?.stats && result.found && !result.sameStation && (
+            <details className="search-stats">
+              <summary>How we found this</summary>
+              <p>
+                RAPTOR searched in rounds: round 1 tries every train you could
+                board, round 2 adds one change, and so on. It kept an option
+                only when an extra change got you there earlier.
+              </p>
+              <dl>
+                <div>
+                  <dt>Live trains considered</dt>
+                  <dd>{result.stats.trips.toLocaleString()}</dd>
+                </div>
+                <div>
+                  <dt>Trains scanned</dt>
+                  <dd>{result.stats.tripsScanned.toLocaleString()}</dd>
+                </div>
+                <div>
+                  <dt>Stop predictions checked</dt>
+                  <dd>{result.stats.stopEventsScanned.toLocaleString()}</dd>
+                </div>
+                <div>
+                  <dt>Rounds</dt>
+                  <dd>{result.stats.rounds}</dd>
+                </div>
+                <div>
+                  <dt>Search time</dt>
+                  <dd>{result.stats.ms} ms</dd>
+                </div>
+              </dl>
+              <a href="/algorithms">
+                Compare BFS, Dijkstra and A* on the live subway ↗
+              </a>
+            </details>
           )}
         </div>
         <details className="trip-explainer">
@@ -1364,9 +1608,10 @@ export default function JourneyPlanner({
             do not calculate street walking routes. “Quickest” means the
             earliest arrival found in available predictions, not a guarantee
             across all services. Service alerts are shown but are not
-            automatically translated into closed tracks. This is not an
-            accessibility route planner. Check station signs and MTA advice
-            before boarding.
+            automatically translated into closed tracks. The step-free option
+            uses MTA elevator status and is an approximation: it does not know
+            which entrance or platform direction each elevator serves. Check
+            station signs and MTA advice before boarding.
           </p>
           <p>
             Map and transfer reference imported{" "}

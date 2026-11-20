@@ -1,12 +1,13 @@
-# Latest update: interactive map and quickest predicted trips
+# Latest update: v2.0 audit (November 2026)
 
-Use the new `StreetCode_NYC_GitHub_Update.zip` for an existing repository. Extract it first, then upload its **app, lib, public, scripts, tests, and docs folders plus README.md** at the repository root. This update includes backend and routing data changes; uploading only app and public is no longer sufficient.
+The simplest way to update is to replace the whole repository contents with the files in `streetcode-nyc-v2.zip`, keeping the same repository:
 
-Files with the same path replace their existing contents. Do not place them inside a second streetcode-nyc folder, and do not delete your repository. Do not upload the ZIP itself as app source. Review the changed file list before committing to main. Hostinger then needs to deploy that commit (automatically if enabled, otherwise use its redeploy action).
-
-Build settings remain Next.js, Node 22.x/24.x, root ./, npm, `npm run build`, output `.next`. No new environment variables, API keys, or dependencies are required. Keep package.json, package-lock.json, next.config.ts, and tsconfig.json already in the repository. The separate full ZIP includes these files for a clean installation.
-
-After deployment, check map selection, a D-line trip, nearby station discovery, and the live feed timestamps. See MAP_UPDATE.md for a short test sequence.
+1. Extract the ZIP. Inside is a `streetcode-nyc` folder containing `package.json`, `app`, `lib`, `public`, `scripts`, `tests`, `docs`, `.github` and `.gitignore`.
+2. If you use git locally: copy the folder's contents over your clone, then `git add -A && git commit -m "v2.0: audit fixes, RAPTOR planner, algorithms page" && git push`.
+   Or on GitHub.com: Add file → Upload files, and drag in the folder's **contents**. On macOS, press Command + Shift + Period first so `.github` and `.gitignore` show. GitHub's web uploader keeps subfolders.
+3. Hostinger redeploys from `main` (or press Redeploy). Build settings are unchanged, there are no new environment variables, and `package-lock.json` changed only to update Next.js.
+4. After it deploys: open `/algorithms`, plan a trip with "Step-free only" ticked, and run `npm run test:live` locally if you can.
+5. In GitHub → Actions, run **Refresh subway map data** once, then review and merge its pull request. That refreshes the station data, which expired on 2026-10-31.
 
 ---
 
