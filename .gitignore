@@ -1,0 +1,15 @@
+# dependencies
+node_modules/
+# Next.js build output
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+# local env and secrets
+.env*
+!.env.example
+# logs and OS files
+npm-debug.log*
+.DS_Store
+# smoke-test reports
+smoke-report*.json
