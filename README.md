@@ -80,4 +80,13 @@ Unchanged: Next.js preset, Node 22.x/24.x, root `./`, install `npm ci`, build `n
 
 ## Group ownership
 
-Add the group members and their contributions before submission. No open-source license has been chosen yet. Agree on one as a group.
+Mannah Mohamed
+
+Angelo Vasquez
+
+Rea Ara
+
+Colin Stephenson 
+
+Zhining Yu
+
